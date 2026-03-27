@@ -125,7 +125,7 @@ def test_status_stale_pid(mote_home):
 def test_record_no_blackhole(mote_home):
     """mote record with no BlackHole device exits non-zero with install instructions."""
     runner = CliRunner()
-    with patch("mote.audio.find_blackhole_device", return_value=None):
+    with patch("mote.cli.find_blackhole_device", return_value=None):
         result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
     assert result.exit_code != 0
     assert "BlackHole" in result.output
@@ -149,8 +149,8 @@ def test_record_stale_pid_allows_start(mote_home):
     fake_device = {"name": "BlackHole 2ch", "index": 0, "max_input_channels": 2}
     fake_wav = mote_home / "recordings" / "mote_20260327_000000.wav"
     runner = CliRunner()
-    with patch("mote.audio.find_blackhole_device", return_value=fake_device), \
-         patch("mote.audio.record_session", return_value=fake_wav) as mock_rec:
+    with patch("mote.cli.find_blackhole_device", return_value=fake_device), \
+         patch("mote.cli.record_session", return_value=fake_wav) as mock_rec:
         result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
     # Stale PID warning should be shown
     assert "stale" in result.output.lower() or "dead" in result.output.lower()
@@ -167,8 +167,8 @@ def test_record_orphan_warning(mote_home):
     fake_device = {"name": "BlackHole 2ch", "index": 0, "max_input_channels": 2}
     fake_wav = recordings_dir / "mote_20260327_000000.wav"
     runner = CliRunner()
-    with patch("mote.audio.find_blackhole_device", return_value=fake_device), \
-         patch("mote.audio.record_session", return_value=fake_wav):
+    with patch("mote.cli.find_blackhole_device", return_value=fake_device), \
+         patch("mote.cli.record_session", return_value=fake_wav):
         result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
     # Orphan warning should mention the WAV file or use "Found" / "orphan"
     combined = result.output.lower()

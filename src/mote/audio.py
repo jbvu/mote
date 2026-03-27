@@ -37,16 +37,21 @@ def find_blackhole_device() -> Optional[dict]:
 
     Prefers "BlackHole 2ch" (D-08). Falls back to any BlackHole variant with
     input channels. Ignores output-only BlackHole devices.
+
+    The returned dict includes an "index" key with the numeric sounddevice
+    device index required by sd.InputStream(device=...).
     """
     devices = sd.query_devices()
     preferred: Optional[dict] = None
     fallback: Optional[dict] = None
-    for d in devices:
+    for i, d in enumerate(devices):
         if "BlackHole" in d["name"] and d["max_input_channels"] > 0:
+            device_with_index = dict(d)
+            device_with_index["index"] = i
             if "2ch" in d["name"] and preferred is None:
-                preferred = d
+                preferred = device_with_index
             elif fallback is None:
-                fallback = d
+                fallback = device_with_index
     return preferred or fallback
 
 
