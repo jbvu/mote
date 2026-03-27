@@ -1,0 +1,1 @@
+"""KB-Whisper model management."""
