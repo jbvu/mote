@@ -12,7 +12,8 @@ Accurate Swedish-language meeting transcription that actually works — no exist
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] TOML-based configuration with sensible defaults — Validated in Phase 1: Foundation
+- [x] CLI entry point with command groups — Validated in Phase 1: Foundation
 
 ### Active
 
@@ -69,7 +70,7 @@ Accurate Swedish-language meeting transcription that actually works — no exist
 | BlackHole for audio capture | Standard macOS virtual audio device, no kernel extensions | — Pending |
 | faster-whisper over whisper.cpp | Python-native, CTranslate2 backend, good performance | — Pending |
 | Flask over FastAPI | Simpler for SSE + template rendering, sufficient for single-user tool | — Pending |
-| TOML config over YAML/JSON | Human-readable, good Python support, standard for Python tools | — Pending |
+| TOML config over YAML/JSON | Human-readable, good Python support, standard for Python tools | Validated (Phase 1) |
 | SSE over WebSocket | Simpler for one-way server→client updates, no extra dependencies | — Pending |
 | Google Drive API upload | Explicit push to GDrive rather than relying on local sync folder | — Pending |
 | Distribute via GitHub | Tool should be reproducible on any macOS setup via pip install | — Pending |
@@ -93,4 +94,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-27 after initialization*
+*Last updated: 2026-03-27 after Phase 1 completion — installable package, CLI, config system, 20 passing tests*
