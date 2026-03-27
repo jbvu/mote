@@ -26,3 +26,43 @@ def test_config_group_help():
     result = runner.invoke(cli, ["config", "--help"])
     assert result.exit_code == 0
     assert "View and edit" in result.output
+
+
+def test_config_show(mote_home):
+    """mote config show prints config contents with default values."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["config", "show"], env={"MOTE_HOME": str(mote_home)})
+    assert result.exit_code == 0
+    assert "language" in result.output
+    assert "sv" in result.output
+    assert "engine" in result.output
+
+
+def test_config_set(mote_home):
+    """mote config set updates a value in the config file."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["config", "set", "general.language", "en"],
+                           env={"MOTE_HOME": str(mote_home)})
+    assert result.exit_code == 0
+    assert "Set general.language = en" in result.output
+    # Verify the value was actually written
+    show = runner.invoke(cli, ["config", "show"], env={"MOTE_HOME": str(mote_home)})
+    assert 'language = "en"' in show.output
+
+
+def test_config_set_invalid_key(mote_home):
+    """mote config set with invalid key shows error."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["config", "set", "nonexistent.key", "val"],
+                           env={"MOTE_HOME": str(mote_home)})
+    assert result.exit_code != 0
+
+
+def test_config_path(mote_home):
+    """mote config path prints the config file path."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["config", "path"],
+                           env={"MOTE_HOME": str(mote_home)})
+    assert result.exit_code == 0
+    assert str(mote_home) in result.output
+    assert "config.toml" in result.output
