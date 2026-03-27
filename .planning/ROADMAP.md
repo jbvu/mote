@@ -29,7 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. On first run, `~/.mote/config.toml` is created with sensible defaults and permissions 600
   3. User can view and edit configuration via `mote config` command
   4. `make test` runs the pytest suite and all tests pass in a clean environment
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Project scaffolding: pyproject.toml, CLI skeleton, Makefile, test harness
+- [ ] 01-02-PLAN.md — Configuration system: config module, CLI config commands, full test coverage
 
 ### Phase 2: Audio Capture
 **Goal**: User can record a meeting's system audio via BlackHole with live feedback confirming audio is flowing
@@ -83,7 +87,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/TBD | Not started | - |
+| 1. Foundation | 0/2 | Planning complete | - |
 | 2. Audio Capture | 0/TBD | Not started | - |
 | 3. Model Management | 0/TBD | Not started | - |
 | 4. Transcription Engine | 0/TBD | Not started | - |
