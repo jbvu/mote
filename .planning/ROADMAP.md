@@ -33,7 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01-PLAN.md — Project scaffolding: pyproject.toml, CLI skeleton, Makefile, test harness
-- [ ] 01-02-PLAN.md — Configuration system: config module, CLI config commands, full test coverage
+- [x] 01-02-PLAN.md — Configuration system: config module, CLI config commands, full test coverage
 
 ### Phase 2: Audio Capture
 **Goal**: User can record a meeting's system audio via BlackHole with live feedback confirming audio is flowing

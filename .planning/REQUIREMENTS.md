@@ -37,10 +37,10 @@
 
 ### Configuration
 
-- [ ] **CFG-01**: User can configure defaults via TOML file at ~/.mote/config.toml
-- [ ] **CFG-02**: Config file is created with sensible defaults on first run
-- [ ] **CFG-03**: API keys can be set via environment variables or config file
-- [ ] **CFG-04**: Config file has restrictive permissions (600)
+- [x] **CFG-01**: User can configure defaults via TOML file at ~/.mote/config.toml
+- [x] **CFG-02**: Config file is created with sensible defaults on first run
+- [x] **CFG-03**: API keys can be set via environment variables or config file
+- [x] **CFG-04**: Config file has restrictive permissions (600)
 
 ### CLI
 
@@ -105,10 +105,10 @@
 | SET-02 | Phase 1 | Complete |
 | SET-03 | Phase 1 | Complete |
 | SET-04 | Phase 1 | Complete |
-| CFG-01 | Phase 1 | Pending |
-| CFG-02 | Phase 1 | Pending |
-| CFG-03 | Phase 1 | Pending |
-| CFG-04 | Phase 1 | Pending |
+| CFG-01 | Phase 1 | Complete |
+| CFG-02 | Phase 1 | Complete |
+| CFG-03 | Phase 1 | Complete |
+| CFG-04 | Phase 1 | Complete |
 | AUD-01 | Phase 2 | Pending |
 | AUD-02 | Phase 2 | Pending |
 | AUD-03 | Phase 2 | Pending |
