@@ -32,7 +32,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Project scaffolding: pyproject.toml, CLI skeleton, Makefile, test harness
+- [x] 01-01-PLAN.md — Project scaffolding: pyproject.toml, CLI skeleton, Makefile, test harness
 - [ ] 01-02-PLAN.md — Configuration system: config module, CLI config commands, full test coverage
 
 ### Phase 2: Audio Capture

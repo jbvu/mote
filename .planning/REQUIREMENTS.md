@@ -53,10 +53,10 @@
 
 ### Project Setup
 
-- [ ] **SET-01**: Installable via `pip install` from GitHub repository
-- [ ] **SET-02**: pyproject.toml with all dependencies and entry point
-- [ ] **SET-03**: Makefile for common operations (setup, run, test, clean)
-- [ ] **SET-04**: pytest test suite with fixtures
+- [x] **SET-01**: Installable via `pip install` from GitHub repository
+- [x] **SET-02**: pyproject.toml with all dependencies and entry point
+- [x] **SET-03**: Makefile for common operations (setup, run, test, clean)
+- [x] **SET-04**: pytest test suite with fixtures
 
 ## v2 Requirements
 
@@ -101,10 +101,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SET-01 | Phase 1 | Pending |
-| SET-02 | Phase 1 | Pending |
-| SET-03 | Phase 1 | Pending |
-| SET-04 | Phase 1 | Pending |
+| SET-01 | Phase 1 | Complete |
+| SET-02 | Phase 1 | Complete |
+| SET-03 | Phase 1 | Complete |
+| SET-04 | Phase 1 | Complete |
 | CFG-01 | Phase 1 | Pending |
 | CFG-02 | Phase 1 | Pending |
 | CFG-03 | Phase 1 | Pending |
