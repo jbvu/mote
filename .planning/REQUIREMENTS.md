@@ -7,10 +7,10 @@
 
 ### Audio Capture
 
-- [ ] **AUD-01**: User can capture system audio from virtual meetings via BlackHole
-- [ ] **AUD-02**: User can start and stop recording via CLI command
-- [ ] **AUD-03**: User sees real-time audio level indicator during recording
-- [ ] **AUD-04**: User sees elapsed recording time during recording
+- [x] **AUD-01**: User can capture system audio from virtual meetings via BlackHole
+- [x] **AUD-02**: User can start and stop recording via CLI command
+- [x] **AUD-03**: User sees real-time audio level indicator during recording
+- [x] **AUD-04**: User sees elapsed recording time during recording
 
 ### Transcription
 
@@ -109,10 +109,10 @@
 | CFG-02 | Phase 1 | Complete |
 | CFG-03 | Phase 1 | Complete |
 | CFG-04 | Phase 1 | Complete |
-| AUD-01 | Phase 2 | Pending |
-| AUD-02 | Phase 2 | Pending |
-| AUD-03 | Phase 2 | Pending |
-| AUD-04 | Phase 2 | Pending |
+| AUD-01 | Phase 2 | Complete |
+| AUD-02 | Phase 2 | Complete |
+| AUD-03 | Phase 2 | Complete |
+| AUD-04 | Phase 2 | Complete |
 | CLI-01 | Phase 2 | Pending |
 | CLI-04 | Phase 2 | Pending |
 | CLI-06 | Phase 2 | Pending |

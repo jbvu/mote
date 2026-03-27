@@ -45,10 +45,10 @@ Plans:
   2. Pressing Ctrl+C stops recording gracefully and a WAV file is written to disk
   3. `mote status` shows whether a recording is in progress or idle
   4. If BlackHole 2ch is not detected, recording refuses to start with a clear error message
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 02-01-PLAN.md — Audio core module: BlackHole detection, recording engine, WAV writing, PID management, display helpers
+- [x] 02-01-PLAN.md — Audio core module: BlackHole detection, recording engine, WAV writing, PID management, display helpers
 - [ ] 02-02-PLAN.md — CLI commands: mote record and mote status with hardware verification checkpoint
 
 ### Phase 3: Model Management
@@ -93,7 +93,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/3 | Gap closure planned | - |
-| 2. Audio Capture | 0/2 | Planned | - |
+| 2. Audio Capture | 1/2 | In Progress|  |
 | 3. Model Management | 0/TBD | Not started | - |
 | 4. Transcription Engine | 0/TBD | Not started | - |
 | 5. Output and Transcript Management | 0/TBD | Not started | - |
