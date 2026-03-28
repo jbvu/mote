@@ -1,5 +1,7 @@
 """Mote CLI entry point."""
 
+from pathlib import Path
+
 import click
 from rich.console import Console
 from rich.table import Table
@@ -23,6 +25,7 @@ from mote.models import (
     config_value_to_alias,
 )
 from mote.transcribe import transcribe_file, get_wav_duration
+from mote.output import write_transcript, list_transcripts, _sanitize_name
 
 
 @click.group()
@@ -84,7 +87,8 @@ def status_command():
               help="Language code (overrides config).")
 @click.option("--no-transcribe", is_flag=True, default=False,
               help="Save WAV only, skip transcription.")
-def record_command(engine, language, no_transcribe):
+@click.option("--name", default=None, help="Optional name for output files (e.g., 'standup').")
+def record_command(engine, language, no_transcribe, name):
     """Start recording system audio via BlackHole."""
     config_dir = get_config_dir()
     pid_path = config_dir / "mote.pid"
@@ -151,16 +155,65 @@ def record_command(engine, language, no_transcribe):
         transcript = transcribe_file(
             wav_path, resolved_engine, resolved_language, model_alias, api_key
         )
+
+        # Write output files BEFORE deleting WAV (per D-14)
+        output_cfg = cfg.get("output", {})
+        output_dir = Path(output_cfg.get("dir", "~/Documents/mote")).expanduser()
+        formats = output_cfg.get("format", ["markdown", "txt"])
+        sanitized_name = _sanitize_name(name) if name else None
+        written = write_transcript(
+            transcript, output_dir, formats, duration, resolved_engine,
+            resolved_language, model_alias, sanitized_name,
+        )
+
         wav_path.unlink(missing_ok=True)
+
+        # Summary line (per D-16)
         word_count = len(transcript.split())
         mins, secs = divmod(int(duration), 60)
-        click.echo(f"Transcription complete ({mins}:{secs:02d}, {word_count:,} words)")
+        names_str = ", ".join(p.name for p in written)
+        click.echo(f"Transcription complete ({mins}:{secs:02d}, {word_count:,} words) \u2192 {names_str}")
     except click.ClickException:
         raise
     except Exception as e:
         raise click.ClickException(
             f"Transcription failed: {e}\nWAV kept at: {wav_path}"
         )
+
+
+@cli.command("list")
+@click.option("--all", "show_all", is_flag=True, default=False,
+              help="Show all transcripts, not just the last 20.")
+def list_command(show_all):
+    """Show recent transcripts."""
+    cfg = load_config()
+    output_dir = Path(cfg.get("output", {}).get("dir", "~/Documents/mote")).expanduser()
+
+    records = list_transcripts(output_dir)
+    if not show_all:
+        records = records[:20]
+
+    if not records:
+        click.echo("No transcripts found.")
+        return
+
+    console = Console()
+    table = Table(title="Recent Transcripts", show_header=True, header_style="bold")
+    table.add_column("Filename", style="cyan")
+    table.add_column("Date", no_wrap=True)
+    table.add_column("Duration", justify="right")
+    table.add_column("Words", justify="right")
+    table.add_column("Engine")
+    for r in records:
+        mins, secs = divmod(r["duration"], 60)
+        table.add_row(
+            r["filename"],
+            r["date"],
+            f"{mins}:{secs:02d}",
+            f"{r['words']:,}",
+            r["engine"],
+        )
+    console.print(table)
 
 
 # ---------------------------------------------------------------------------
