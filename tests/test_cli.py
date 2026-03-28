@@ -205,11 +205,14 @@ def test_record_auto_transcribes(mote_home):
     """After recording, transcribe_file is called with engine/language from config defaults."""
     runner = CliRunner()
     wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md", out_dir / "2026-01-01_0000.txt"]
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
          patch("mote.cli.get_wav_duration", return_value=60.0), \
-         patch("mote.cli.transcribe_file", return_value="hello world") as mock_tx:
+         patch("mote.cli.transcribe_file", return_value="hello world") as mock_tx, \
+         patch("mote.cli.write_transcript", return_value=fake_written):
         result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
 
     assert result.exit_code == 0, result.output
@@ -225,11 +228,14 @@ def test_record_engine_flag(mote_home):
     """--engine openai overrides config's default local engine."""
     runner = CliRunner()
     wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
          patch("mote.cli.get_wav_duration", return_value=30.0), \
-         patch("mote.cli.transcribe_file", return_value="hej världen") as mock_tx:
+         patch("mote.cli.transcribe_file", return_value="hej världen") as mock_tx, \
+         patch("mote.cli.write_transcript", return_value=fake_written):
         result = runner.invoke(cli, ["record", "--engine", "openai"],
                                env={"MOTE_HOME": str(mote_home)})
 
@@ -243,11 +249,14 @@ def test_record_language_flag(mote_home):
     """--language en overrides config's default sv language."""
     runner = CliRunner()
     wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
          patch("mote.cli.get_wav_duration", return_value=30.0), \
-         patch("mote.cli.transcribe_file", return_value="hello world") as mock_tx:
+         patch("mote.cli.transcribe_file", return_value="hello world") as mock_tx, \
+         patch("mote.cli.write_transcript", return_value=fake_written):
         result = runner.invoke(cli, ["record", "--language", "en"],
                                env={"MOTE_HOME": str(mote_home)})
 
@@ -277,11 +286,14 @@ def test_record_deletes_wav_on_success(mote_home):
     """After successful transcription, the WAV file is deleted."""
     runner = CliRunner()
     wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
          patch("mote.cli.get_wav_duration", return_value=90.0), \
-         patch("mote.cli.transcribe_file", return_value="transcript text"):
+         patch("mote.cli.transcribe_file", return_value="transcript text"), \
+         patch("mote.cli.write_transcript", return_value=fake_written):
         result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
 
     assert result.exit_code == 0, result.output
@@ -302,3 +314,172 @@ def test_record_keeps_wav_on_failure(mote_home):
     assert result.exit_code != 0
     assert wav.exists()
     assert "WAV kept at" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Output write wiring and list command tests (Plan 02)
+# ---------------------------------------------------------------------------
+
+
+def test_record_writes_output_files(mote_home):
+    """After transcription, write_transcript is called and output files are produced."""
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write real files so we can assert their existence
+    md_file = out_dir / "2026-03-28_1000.md"
+    txt_file = out_dir / "2026-03-28_1000.txt"
+    md_file.write_text("---\ndate: 2026-03-28T10:00:00\nduration: 322\nwords: 2\nengine: local\nlanguage: sv\nmodel: medium\n---\n\nhello world", encoding="utf-8")
+    txt_file.write_text("hello world", encoding="utf-8")
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.get_wav_duration", return_value=322.0), \
+         patch("mote.cli.transcribe_file", return_value="hello world"), \
+         patch("mote.cli.write_transcript", return_value=[md_file, txt_file]) as mock_write:
+        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    mock_write.assert_called_once()
+    assert md_file.exists()
+    assert txt_file.exists()
+    # Summary line should contain arrow and filenames
+    assert "\u2192" in result.output
+    assert "2026-03-28_1000.md" in result.output
+
+
+def test_record_name_flag(mote_home):
+    """--name standup produces output filenames containing 'standup'."""
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    named_file = out_dir / "2026-03-28_1000_standup.md"
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="hello world"), \
+         patch("mote.cli.write_transcript", return_value=[named_file]) as mock_write:
+        result = runner.invoke(cli, ["record", "--name", "standup"],
+                               env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    mock_write.assert_called_once()
+    # The name passed to write_transcript should be the sanitized form
+    call_kwargs = mock_write.call_args
+    # name is the 8th positional arg (index 7) or keyword arg
+    call_args = call_kwargs[0]
+    assert call_args[7] == "standup"  # sanitized name
+    # Summary line contains the named file
+    assert "standup" in result.output
+
+
+def test_record_deletes_wav_after_write(mote_home):
+    """WAV file is deleted only after write_transcript() succeeds."""
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_file = out_dir / "2026-03-28_1000.md"
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.get_wav_duration", return_value=90.0), \
+         patch("mote.cli.transcribe_file", return_value="transcript text"), \
+         patch("mote.cli.write_transcript", return_value=[fake_file]):
+        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    assert not wav.exists(), "WAV should be deleted after successful write"
+
+
+def test_record_keeps_wav_on_write_failure(mote_home):
+    """WAV file is kept on disk if write_transcript() raises an exception."""
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="hello world"), \
+         patch("mote.cli.write_transcript", side_effect=OSError("disk full")):
+        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code != 0 or "WAV kept at" in result.output
+    assert wav.exists(), "WAV must be kept when write_transcript raises"
+
+
+def test_list_command(mote_home):
+    """mote list shows a Rich table with transcript metadata."""
+    from mote.output import write_transcript
+    from datetime import datetime
+
+    runner = CliRunner()
+    out_dir = mote_home / "transcripts"
+
+    # Create 2 .md files via write_transcript
+    write_transcript(
+        "transcript one", out_dir, ["markdown"], 120.0, "local", "sv", "medium",
+        name="meeting-one", timestamp=datetime(2026, 3, 28, 10, 0, 0),
+    )
+    write_transcript(
+        "transcript two three", out_dir, ["markdown"], 300.0, "openai", "en", "medium",
+        name="meeting-two", timestamp=datetime(2026, 3, 28, 11, 0, 0),
+    )
+
+    # Point output.dir at our tmp dir
+    with patch("mote.cli.load_config", return_value={"output": {"dir": str(out_dir), "format": ["markdown"]}}):
+        result = runner.invoke(cli, ["list"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    assert "Recent Transcripts" in result.output
+    # Rich may truncate long filenames; check for partial match of distinct parts
+    assert "meeting-o" in result.output  # meeting-one (possibly truncated)
+    assert "meeting-t" in result.output  # meeting-two (possibly truncated)
+
+
+def test_list_command_empty(mote_home):
+    """mote list with empty output dir shows 'No transcripts found.'"""
+    runner = CliRunner()
+    out_dir = mote_home / "transcripts"
+
+    with patch("mote.cli.load_config", return_value={"output": {"dir": str(out_dir), "format": ["markdown"]}}):
+        result = runner.invoke(cli, ["list"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    assert "No transcripts found." in result.output
+
+
+def test_list_command_all_flag(mote_home):
+    """mote list without --all shows max 20 entries; with --all shows all 25."""
+    from mote.output import write_transcript
+    from datetime import datetime, timedelta
+
+    runner = CliRunner()
+    out_dir = mote_home / "transcripts"
+
+    # Create 25 .md files with distinct timestamps (1 minute apart)
+    base = datetime(2026, 3, 1, 0, 0, 0)
+    for i in range(25):
+        ts = base + timedelta(minutes=i)
+        write_transcript(
+            f"text {i}", out_dir, ["markdown"], 60.0, "local", "sv", "medium",
+            name=f"m{i:02d}", timestamp=ts,
+        )
+
+    with patch("mote.cli.load_config", return_value={"output": {"dir": str(out_dir), "format": ["markdown"]}}):
+        result_limited = runner.invoke(cli, ["list"], env={"MOTE_HOME": str(mote_home)})
+        result_all = runner.invoke(cli, ["list", "--all"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result_limited.exit_code == 0
+    assert result_all.exit_code == 0
+
+    # Count table rows by counting occurrences of ".md" in the output
+    # Each row contains the filename which ends in .md
+    all_count = result_all.output.count(".md")
+    limited_count = result_limited.output.count(".md")
+
+    assert all_count == 25, f"Expected 25 rows in --all output, got {all_count}"
+    assert limited_count == 20, f"Expected 20 rows in limited output, got {limited_count}"
