@@ -19,7 +19,7 @@
 - [x] **TRX-03**: User can select transcription engine via config or CLI flag
 - [x] **TRX-04**: User can select language (sv, no, da, fi, en) via config or CLI flag
 - [x] **TRX-05**: User sees transcription progress as percentage during processing
-- [ ] **TRX-06**: Transcription runs automatically after recording stops
+- [x] **TRX-06**: Transcription runs automatically after recording stops
 
 ### Model Management
 
@@ -126,7 +126,7 @@
 | TRX-03 | Phase 4 | Complete |
 | TRX-04 | Phase 4 | Complete |
 | TRX-05 | Phase 4 | Complete |
-| TRX-06 | Phase 4 | Pending |
+| TRX-06 | Phase 4 | Complete |
 | CLI-03 | Phase 4 | Complete |
 | OUT-01 | Phase 5 | Pending |
 | OUT-02 | Phase 5 | Pending |
