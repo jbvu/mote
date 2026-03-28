@@ -14,6 +14,7 @@ Accurate Swedish-language meeting transcription that actually works — no exist
 
 - [x] TOML-based configuration with sensible defaults — Validated in Phase 1: Foundation
 - [x] CLI entry point with command groups — Validated in Phase 1: Foundation
+- [x] Manage local whisper models (download, delete, list) — Validated in Phase 3: Model Management
 
 ### Active
 
@@ -29,7 +30,6 @@ Accurate Swedish-language meeting transcription that actually works — no exist
 - [ ] Chrome extension for quick recording control
 - [ ] Output transcripts as Markdown, plain text, and JSON
 - [ ] Push completed transcripts to Google Drive via API
-- [ ] Manage local whisper models (download, delete, list)
 - [ ] TOML-based configuration with sensible defaults
 - [ ] Real-time audio level monitoring during recording
 - [ ] Transcription progress reporting
@@ -74,7 +74,7 @@ Accurate Swedish-language meeting transcription that actually works — no exist
 | SSE over WebSocket | Simpler for one-way server→client updates, no extra dependencies | — Pending |
 | Google Drive API upload | Explicit push to GDrive rather than relying on local sync folder | — Pending |
 | Distribute via GitHub | Tool should be reproducible on any macOS setup via pip install | — Pending |
-| No auto-download of models | User should explicitly choose which models to download | — Pending |
+| No auto-download of models | User should explicitly choose which models to download | Validated (Phase 3) |
 
 ## Evolution
 
@@ -94,4 +94,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-27 after Phase 1 completion — installable package, CLI, config system, 20 passing tests*
+*Last updated: 2026-03-28 after Phase 3 completion — model management (list/download/delete), 102 passing tests*
