@@ -22,6 +22,7 @@ from mote.models import (
     cleanup_partial_download,
     config_value_to_alias,
 )
+from mote.transcribe import transcribe_file, get_wav_duration
 
 
 @click.group()
@@ -77,7 +78,13 @@ def status_command():
 
 
 @cli.command("record")
-def record_command():
+@click.option("--engine", type=click.Choice(["local", "openai"]), default=None,
+              help="Transcription engine (overrides config).")
+@click.option("--language", type=click.Choice(["sv", "no", "da", "fi", "en"]), default=None,
+              help="Language code (overrides config).")
+@click.option("--no-transcribe", is_flag=True, default=False,
+              help="Save WAV only, skip transcription.")
+def record_command(engine, language, no_transcribe):
     """Start recording system audio via BlackHole."""
     config_dir = get_config_dir()
     pid_path = config_dir / "mote.pid"
@@ -123,6 +130,37 @@ def record_command():
         click.echo(f"\nRecording saved: {wav_path}")
     except Exception as e:
         raise click.ClickException(f"Recording failed: {e}")
+
+    # --- Auto-transcription (D-01, D-02, D-03) ---
+    if no_transcribe:
+        return
+
+    cfg = load_config()
+    resolved_engine = engine or cfg.get("transcription", {}).get("engine", "local")
+    resolved_language = language or cfg.get("transcription", {}).get("language", "sv")
+    model_config = cfg.get("transcription", {}).get("model", "kb-whisper-medium")
+    model_alias = config_value_to_alias(model_config) or "medium"
+    api_key = cfg.get("api_keys", {}).get("openai") or None
+
+    # Treat empty string api_key as None
+    if api_key == "":
+        api_key = None
+
+    try:
+        duration = get_wav_duration(wav_path)
+        transcript = transcribe_file(
+            wav_path, resolved_engine, resolved_language, model_alias, api_key
+        )
+        wav_path.unlink(missing_ok=True)
+        word_count = len(transcript.split())
+        mins, secs = divmod(int(duration), 60)
+        click.echo(f"Transcription complete ({mins}:{secs:02d}, {word_count:,} words)")
+    except click.ClickException:
+        raise
+    except Exception as e:
+        raise click.ClickException(
+            f"Transcription failed: {e}\nWAV kept at: {wav_path}"
+        )
 
 
 # ---------------------------------------------------------------------------
