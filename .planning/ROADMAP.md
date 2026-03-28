@@ -60,7 +60,10 @@ Plans:
   2. `mote models download <name>` downloads the chosen model with a progress bar showing size and percentage
   3. `mote models delete <name>` removes a downloaded model from disk
   4. Attempting local transcription with no model downloaded shows a clear error with download instructions
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 03-01-PLAN.md — Model management: list/download/delete KB-Whisper models with Rich UI
 
 ### Phase 4: Transcription Engine
 **Goal**: User can transcribe a recorded WAV file into Swedish text using local KB-Whisper or OpenAI Whisper as fallback
@@ -72,7 +75,10 @@ Plans:
   3. User can override the engine per-recording with a CLI flag (e.g., `mote record --engine openai`)
   4. User can set the language (sv, no, da, fi, en) via config or a CLI flag
   5. Transcription completes and produces a result file without leaving the WAV file on disk
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 03-01-PLAN.md — Model management: list/download/delete KB-Whisper models with Rich UI
 
 ### Phase 5: Output and Transcript Management
 **Goal**: Transcription results are written as well-named Markdown and plain text files, and the user can list past transcripts
@@ -83,7 +89,10 @@ Plans:
   2. Output filenames include a timestamp and optionally a user-provided name (e.g., `2026-03-27_standup.md`)
   3. `mote list` shows recent transcripts with their filenames and timestamps
   4. The temporary WAV file is deleted after successful transcription and not left on disk after any exit path
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 03-01-PLAN.md — Model management: list/download/delete KB-Whisper models with Rich UI
 
 ## Progress
 
@@ -94,6 +103,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/3 | Gap closure planned | - |
 | 2. Audio Capture | 2/2 | Complete   | 2026-03-27 |
-| 3. Model Management | 0/TBD | Not started | - |
+| 3. Model Management | 0/1 | Not started | - |
 | 4. Transcription Engine | 0/TBD | Not started | - |
 | 5. Output and Transcript Management | 0/TBD | Not started | - |
