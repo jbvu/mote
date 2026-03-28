@@ -33,7 +33,7 @@
 - [x] **OUT-01**: Transcripts are saved as Markdown files with timestamps
 - [x] **OUT-02**: Transcripts are saved as plain text files
 - [x] **OUT-03**: Output files use timestamped filenames with optional user-provided name
-- [ ] **OUT-04**: Temporary WAV files are cleaned up after successful transcription
+- [x] **OUT-04**: Temporary WAV files are cleaned up after successful transcription
 
 ### Configuration
 
@@ -48,7 +48,7 @@
 - [x] **CLI-02**: `mote models list/download/delete` manages transcription models
 - [x] **CLI-03**: `mote config` views or edits configuration
 - [ ] **CLI-04**: `mote status` shows current recording/transcription state
-- [ ] **CLI-05**: `mote list` shows recent transcripts
+- [x] **CLI-05**: `mote list` shows recent transcripts
 - [ ] **CLI-06**: Ctrl+C during recording gracefully stops and triggers transcription
 
 ### Project Setup
@@ -131,8 +131,8 @@
 | OUT-01 | Phase 5 | Complete |
 | OUT-02 | Phase 5 | Complete |
 | OUT-03 | Phase 5 | Complete |
-| OUT-04 | Phase 5 | Pending |
-| CLI-05 | Phase 5 | Pending |
+| OUT-04 | Phase 5 | Complete |
+| CLI-05 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 32 total
