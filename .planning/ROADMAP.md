@@ -1,8 +1,8 @@
-# Roadmap: Möte
+# Roadmap: Mote
 
 ## Overview
 
-Möte is built in five phases, each delivering a coherent, independently verifiable capability. The order is forced by dependencies: the project foundation comes first (config, packaging, test harness), then audio capture (the physical pipeline into BlackHole), then model management (models must exist before local transcription runs), then the transcription engine (the core differentiator), and finally output formatting and transcript management (completing the capture-to-file workflow). After all five phases, `mote record` captures a meeting, transcribes it in Swedish via KB-Whisper or OpenAI, and writes Markdown/text output ready for Google Drive.
+Mote is built in five phases, each delivering a coherent, independently verifiable capability. The order is forced by dependencies: the project foundation comes first (config, packaging, test harness), then audio capture (the physical pipeline into BlackHole), then model management (models must exist before local transcription runs), then the transcription engine (the core differentiator), and finally output formatting and transcript management (completing the capture-to-file workflow). After all five phases, `mote record` captures a meeting, transcribes it in Swedish via KB-Whisper or OpenAI, and writes Markdown/text output ready for Google Drive.
 
 ## Phases
 
@@ -25,7 +25,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Depends on**: Nothing (first phase)
 **Requirements**: SET-01, SET-02, SET-03, SET-04, CFG-01, CFG-02, CFG-03, CFG-04
 **Success Criteria** (what must be TRUE):
-  1. User can install Möte from GitHub with `pip install git+https://github.com/...` and run `mote --help`
+  1. User can install Mote from GitHub with `pip install git+https://github.com/...` and run `mote --help`
   2. On first run, `~/.mote/config.toml` is created with sensible defaults and permissions 600
   3. User can view and edit configuration via `mote config` command
   4. `make test` runs the pytest suite and all tests pass in a clean environment
@@ -90,15 +90,16 @@ Plans:
   2. Output filenames include a timestamp and optionally a user-provided name (e.g., `2026-03-27_standup.md`)
   3. `mote list` shows recent transcripts with their filenames and timestamps
   4. The temporary WAV file is deleted after successful transcription and not left on disk after any exit path
-**Plans:** 1 plan
+**Plans:** 2 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Output formatting and transcript management (TBD)
+- [ ] 05-01-PLAN.md — Output module: write_transcript() and list_transcripts() with unit tests
+- [ ] 05-02-PLAN.md — CLI wiring: --name flag, write integration, mote list command with integration tests
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -106,4 +107,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Audio Capture | 2/2 | Complete   | 2026-03-27 |
 | 3. Model Management | 1/1 | Complete   | 2026-03-28 |
 | 4. Transcription Engine | 2/2 | Complete   | 2026-03-28 |
-| 5. Output and Transcript Management | 0/TBD | Not started | - |
+| 5. Output and Transcript Management | 0/2 | Planning complete | - |
