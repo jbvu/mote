@@ -8,7 +8,18 @@ import huggingface_hub
 from huggingface_hub import scan_cache_dir, snapshot_download, try_to_load_from_cache
 from huggingface_hub.errors import CacheNotFound
 from huggingface_hub.file_download import repo_folder_name
-from tqdm.rich import tqdm as rich_tqdm
+from tqdm.rich import tqdm as _rich_tqdm
+
+
+class _SafeRichTqdm(_rich_tqdm):
+    """Wrapper that strips kwargs unsupported by tqdm (e.g. 'name' added in huggingface_hub 1.8)."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.pop("name", None)
+        super().__init__(*args, **kwargs)
+
+
+rich_tqdm = _SafeRichTqdm
 
 
 # ---------------------------------------------------------------------------
