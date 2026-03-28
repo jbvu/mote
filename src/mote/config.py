@@ -74,6 +74,8 @@ def _write_default_config(path: Path) -> None:
     transcription.add("engine", "local")
     transcription.add(tomlkit.comment("Model size: tiny, base, small, medium, large"))
     transcription.add("model", "kb-whisper-medium")
+    transcription.add(tomlkit.comment("Language: sv, no, da, fi, en"))
+    transcription.add("language", "sv")
     doc.add("transcription", transcription)
 
     output_table = tomlkit.table()
@@ -82,11 +84,11 @@ def _write_default_config(path: Path) -> None:
     output_table.add("dir", str(Path.home() / "Documents" / "mote"))
     doc.add("output", output_table)
 
-    doc.add(tomlkit.nl())
-    doc.add(tomlkit.comment("API keys - environment variables take priority"))
-    doc.add(tomlkit.comment("[api_keys]"))
-    doc.add(tomlkit.comment('# openai = "sk-..."'))
-    doc.add(tomlkit.comment('# mistral = "..."'))
+    api_keys = tomlkit.table()
+    api_keys.add(tomlkit.comment("API keys - environment variables take priority"))
+    api_keys.add("openai", "")
+    api_keys.add("mistral", "")
+    doc.add("api_keys", api_keys)
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(tomlkit.dumps(doc))

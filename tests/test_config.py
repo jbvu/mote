@@ -95,8 +95,8 @@ def test_env_var_does_not_persist_to_file(mote_home, monkeypatch):
     path = get_config_path()
     with path.open() as f:
         raw = tomlkit.load(f)
-    # api_keys section should be absent from the file
-    assert "api_keys" not in raw
+    # api_keys section exists (with empty defaults) but env var value must not be written
+    assert raw.get("api_keys", {}).get("openai", "") != "sk-should-not-be-written"
 
 
 def test_set_config_value(mote_home):
