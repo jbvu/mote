@@ -19,6 +19,8 @@ Accurate Swedish-language meeting transcription that actually works — no exist
 - [x] Transcribe via OpenAI Whisper API as alternative engine — Validated in Phase 4: Transcription Engine
 - [x] Support Norwegian, Danish, Finnish, English alongside Swedish — Validated in Phase 4: Transcription Engine
 - [x] Transcription progress reporting — Validated in Phase 4: Transcription Engine
+- [x] Output transcripts as Markdown and plain text — Validated in Phase 5: Output and Transcript Management
+- [x] List past transcripts via CLI — Validated in Phase 5: Output and Transcript Management
 
 ### Active
 
@@ -29,7 +31,6 @@ Accurate Swedish-language meeting transcription that actually works — no exist
 - [ ] Web UI settings page for configuration
 - [ ] Web UI model management with download progress
 - [ ] Chrome extension for quick recording control
-- [ ] Output transcripts as Markdown, plain text, and JSON
 - [ ] Push completed transcripts to Google Drive via API
 - [ ] TOML-based configuration with sensible defaults
 - [ ] Real-time audio level monitoring during recording
@@ -94,4 +95,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-28 after Phase 4 completion — transcription engine (KB-Whisper local + OpenAI API, auto-transcribe in CLI), 127 passing tests*
+*Last updated: 2026-03-28 after Phase 5 completion — output formatting (Markdown + plain text), transcript listing, 152 passing tests. All v1 milestone phases complete.*
