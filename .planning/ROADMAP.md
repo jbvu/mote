@@ -90,10 +90,10 @@ Plans:
   2. Output filenames include a timestamp and optionally a user-provided name (e.g., `2026-03-27_standup.md`)
   3. `mote list` shows recent transcripts with their filenames and timestamps
   4. The temporary WAV file is deleted after successful transcription and not left on disk after any exit path
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 05-01-PLAN.md — Output module: write_transcript() and list_transcripts() with unit tests
+- [x] 05-01-PLAN.md — Output module: write_transcript() and list_transcripts() with unit tests
 - [ ] 05-02-PLAN.md — CLI wiring: --name flag, write integration, mote list command with integration tests
 
 ## Progress
@@ -107,4 +107,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 2. Audio Capture | 2/2 | Complete   | 2026-03-27 |
 | 3. Model Management | 1/1 | Complete   | 2026-03-28 |
 | 4. Transcription Engine | 2/2 | Complete   | 2026-03-28 |
-| 5. Output and Transcript Management | 0/2 | Planning complete | - |
+| 5. Output and Transcript Management | 1/2 | In Progress|  |

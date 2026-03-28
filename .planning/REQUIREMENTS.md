@@ -30,9 +30,9 @@
 
 ### Output
 
-- [ ] **OUT-01**: Transcripts are saved as Markdown files with timestamps
-- [ ] **OUT-02**: Transcripts are saved as plain text files
-- [ ] **OUT-03**: Output files use timestamped filenames with optional user-provided name
+- [x] **OUT-01**: Transcripts are saved as Markdown files with timestamps
+- [x] **OUT-02**: Transcripts are saved as plain text files
+- [x] **OUT-03**: Output files use timestamped filenames with optional user-provided name
 - [ ] **OUT-04**: Temporary WAV files are cleaned up after successful transcription
 
 ### Configuration
@@ -128,9 +128,9 @@
 | TRX-05 | Phase 4 | Complete |
 | TRX-06 | Phase 4 | Complete |
 | CLI-03 | Phase 4 | Complete |
-| OUT-01 | Phase 5 | Pending |
-| OUT-02 | Phase 5 | Pending |
-| OUT-03 | Phase 5 | Pending |
+| OUT-01 | Phase 5 | Complete |
+| OUT-02 | Phase 5 | Complete |
+| OUT-03 | Phase 5 | Complete |
 | OUT-04 | Phase 5 | Pending |
 | CLI-05 | Phase 5 | Pending |
 
