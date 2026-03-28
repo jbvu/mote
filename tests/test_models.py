@@ -372,3 +372,178 @@ def test_require_model_downloaded_message_mentions_alias(mock_try):
     with pytest.raises(click.ClickException) as exc_info:
         require_model_downloaded("large")
     assert "large" in str(exc_info.value.format_message())
+
+
+# ---------------------------------------------------------------------------
+# CLI integration tests — mote models list/download/delete
+# ---------------------------------------------------------------------------
+# Patch targets are mote.cli.* (not mote.models.*) because Click imports
+# the functions into the cli module namespace.
+# ---------------------------------------------------------------------------
+
+
+from click.testing import CliRunner
+from mote.cli import cli
+
+
+def _make_status_rows(downloaded_alias=None, active_alias="medium"):
+    """Build 5 model status rows for mock get_models_status."""
+    from mote.models import APPROX_SIZES, MODELS
+    rows = []
+    for alias in MODELS:
+        is_downloaded = alias == downloaded_alias
+        rows.append(
+            {
+                "alias": alias,
+                "approx_size": APPROX_SIZES[alias],
+                "downloaded": is_downloaded,
+                "actual_size": APPROX_SIZES[alias] if is_downloaded else None,
+                "active": alias == active_alias,
+            }
+        )
+    return rows
+
+
+class TestModelsListCommand:
+    def test_models_list_no_downloads(self):
+        runner = CliRunner()
+        with patch("mote.cli.get_models_status", return_value=_make_status_rows()):
+            result = runner.invoke(cli, ["models", "list"])
+        assert result.exit_code == 0
+        # All 5 model aliases should appear
+        for alias in ["tiny", "base", "small", "medium", "large"]:
+            assert alias in result.output
+
+    def test_models_list_shows_downloaded_status(self):
+        runner = CliRunner()
+        with patch("mote.cli.get_models_status", return_value=_make_status_rows(downloaded_alias="medium")):
+            result = runner.invoke(cli, ["models", "list"])
+        assert result.exit_code == 0
+        assert "medium" in result.output
+
+    def test_models_list_shows_active_marker(self):
+        runner = CliRunner()
+        with patch("mote.cli.get_models_status", return_value=_make_status_rows(downloaded_alias="medium")):
+            result = runner.invoke(cli, ["models", "list"])
+        assert result.exit_code == 0
+        assert "active" in result.output.lower()
+
+    def test_models_list_uses_load_config(self, mote_home):
+        """models list loads config to determine active model."""
+        runner = CliRunner()
+        with patch("mote.cli.get_models_status", return_value=_make_status_rows()) as mock_status:
+            result = runner.invoke(cli, ["models", "list"], env={"MOTE_HOME": str(mote_home)})
+        assert result.exit_code == 0
+        mock_status.assert_called_once()
+
+
+class TestModelsDownloadCommand:
+    def test_download_valid_name_not_yet_downloaded(self, mote_home):
+        runner = CliRunner()
+        with patch("mote.cli.is_model_downloaded", return_value=False), \
+             patch("mote.cli.download_model") as mock_dl:
+            result = runner.invoke(
+                cli, ["models", "download", "medium"],
+                input="y\n",
+                env={"MOTE_HOME": str(mote_home)},
+            )
+        assert result.exit_code == 0
+        mock_dl.assert_called_once_with("medium", force=False)
+
+    def test_download_already_downloaded_skips(self, mote_home):
+        runner = CliRunner()
+        with patch("mote.cli.is_model_downloaded", return_value=True), \
+             patch("mote.cli.download_model") as mock_dl:
+            result = runner.invoke(
+                cli, ["models", "download", "medium"],
+                env={"MOTE_HOME": str(mote_home)},
+            )
+        assert result.exit_code == 0
+        mock_dl.assert_not_called()
+        # Should print skip message
+        assert "skip" in result.output.lower() or "already" in result.output.lower()
+
+    def test_download_force_reruns_download(self, mote_home):
+        runner = CliRunner()
+        with patch("mote.cli.is_model_downloaded", return_value=True), \
+             patch("mote.cli.download_model") as mock_dl:
+            result = runner.invoke(
+                cli, ["models", "download", "medium", "--force"],
+                input="y\n",
+                env={"MOTE_HOME": str(mote_home)},
+            )
+        assert result.exit_code == 0
+        mock_dl.assert_called_once_with("medium", force=True)
+
+    def test_download_invalid_name_exits_nonzero(self, mote_home):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["models", "download", "invalid_xyz"],
+            env={"MOTE_HOME": str(mote_home)},
+        )
+        assert result.exit_code != 0
+        # Should list valid names
+        assert "tiny" in result.output or "medium" in result.output
+
+    def test_download_ctrl_c_calls_cleanup(self, mote_home):
+        runner = CliRunner()
+        with patch("mote.cli.is_model_downloaded", return_value=False), \
+             patch("mote.cli.download_model", side_effect=KeyboardInterrupt()), \
+             patch("mote.cli.cleanup_partial_download") as mock_cleanup:
+            result = runner.invoke(
+                cli, ["models", "download", "medium"],
+                input="y\n",
+                env={"MOTE_HOME": str(mote_home)},
+            )
+        mock_cleanup.assert_called_once_with("medium")
+        assert result.exit_code != 0
+
+
+class TestModelsDeleteCommand:
+    def test_delete_downloaded_model_shows_freed(self, mote_home):
+        freed_bytes = 1462 * 1024 * 1024
+        runner = CliRunner()
+        with patch("mote.cli.is_model_downloaded", return_value=True), \
+             patch("mote.cli.delete_model", return_value=freed_bytes) as mock_del, \
+             patch("mote.cli.load_config", return_value={"transcription": {"model": "kb-whisper-small"}}):
+            result = runner.invoke(
+                cli, ["models", "delete", "medium"],
+                env={"MOTE_HOME": str(mote_home)},
+            )
+        assert result.exit_code == 0
+        mock_del.assert_called_once_with("medium")
+        # Should show freed size
+        assert "MB" in result.output or "GB" in result.output
+
+    def test_delete_active_model_shows_warning(self, mote_home):
+        runner = CliRunner()
+        with patch("mote.cli.is_model_downloaded", return_value=True), \
+             patch("mote.cli.delete_model", return_value=1462 * 1024 * 1024), \
+             patch("mote.cli.load_config", return_value={"transcription": {"model": "kb-whisper-medium"}}):
+            result = runner.invoke(
+                cli, ["models", "delete", "medium"],
+                env={"MOTE_HOME": str(mote_home)},
+            )
+        assert result.exit_code == 0
+        # Should warn about active model
+        assert "active" in result.output.lower() or "warning" in result.output.lower()
+
+    def test_delete_not_downloaded_shows_message(self, mote_home):
+        runner = CliRunner()
+        with patch("mote.cli.is_model_downloaded", return_value=False), \
+             patch("mote.cli.delete_model") as mock_del:
+            result = runner.invoke(
+                cli, ["models", "delete", "medium"],
+                env={"MOTE_HOME": str(mote_home)},
+            )
+        assert result.exit_code == 0
+        mock_del.assert_not_called()
+        assert "not downloaded" in result.output.lower() or "not found" in result.output.lower()
+
+    def test_delete_invalid_name_exits_nonzero(self, mote_home):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["models", "delete", "invalid_xyz"],
+            env={"MOTE_HOME": str(mote_home)},
+        )
+        assert result.exit_code != 0

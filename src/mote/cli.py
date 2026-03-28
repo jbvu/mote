@@ -1,6 +1,8 @@
 """Mote CLI entry point."""
 
 import click
+from rich.console import Console
+from rich.table import Table
 
 from mote import __version__
 from mote.config import get_config_dir, get_config_path, ensure_config, load_config, set_config_value
@@ -9,6 +11,16 @@ from mote.audio import (
     record_session,
     is_recording_active,
     find_orphan_recordings,
+)
+from mote.models import (
+    MODELS,
+    APPROX_SIZES,
+    is_model_downloaded,
+    get_models_status,
+    download_model,
+    delete_model,
+    cleanup_partial_download,
+    config_value_to_alias,
 )
 
 
@@ -111,3 +123,125 @@ def record_command():
         click.echo(f"\nRecording saved: {wav_path}")
     except Exception as e:
         raise click.ClickException(f"Recording failed: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _human_size(bytes_: int) -> str:
+    """Format byte count as a human-readable string (e.g. '77 MB', '1.5 GB')."""
+    gb = bytes_ / (1024 ** 3)
+    if gb >= 1.0:
+        return f"{gb:.1f} GB"
+    mb = bytes_ / (1024 ** 2)
+    return f"{mb:.0f} MB"
+
+
+# ---------------------------------------------------------------------------
+# models command group
+# ---------------------------------------------------------------------------
+
+
+@cli.group()
+def models():
+    """Manage KB-Whisper transcription models."""
+    pass
+
+
+@models.command("list")
+def models_list():
+    """Show all available KB-Whisper models with download status."""
+    cfg = load_config()
+    active_config_value = cfg.get("transcription", {}).get("model", "kb-whisper-medium")
+    rows = get_models_status(active_config_value)
+
+    console = Console()
+    table = Table(title="KB-Whisper Models", show_header=True, header_style="bold")
+    table.add_column("Name", style="cyan", no_wrap=True)
+    table.add_column("Size", justify="right")
+    table.add_column("Status")
+
+    for row in rows:
+        alias = row["alias"]
+        if row["downloaded"] and row["actual_size"] is not None:
+            size_str = _human_size(row["actual_size"])
+        else:
+            size_str = f"~{_human_size(row['approx_size'])}"
+
+        if row["downloaded"] and row["active"]:
+            status = "[green]downloaded[/green] [bold](active)[/bold]"
+        elif row["downloaded"]:
+            status = "[green]downloaded[/green]"
+        elif row["active"]:
+            status = "not downloaded [bold](active)[/bold]"
+        else:
+            status = "not downloaded"
+
+        table.add_row(alias, size_str, status)
+
+    console.print(table)
+
+
+@models.command("download")
+@click.argument("name")
+@click.option("--force", is_flag=True, help="Re-download even if already present.")
+def models_download(name, force):
+    """Download a KB-Whisper model to the local HF cache."""
+    if name not in MODELS:
+        valid = ", ".join(MODELS.keys())
+        raise click.ClickException(
+            f"Unknown model '{name}'. Valid names: {valid}"
+        )
+
+    if is_model_downloaded(name) and not force:
+        click.echo(
+            f"kb-whisper-{name} is already downloaded. "
+            "Use --force to re-download."
+        )
+        return
+
+    approx = _human_size(APPROX_SIZES[name])
+    click.confirm(
+        f"kb-whisper-{name} is approximately {approx}. Continue?",
+        default=True,
+        abort=True,
+    )
+
+    try:
+        download_model(name, force=force)
+        click.echo(f"\nDownloaded kb-whisper-{name}.")
+    except KeyboardInterrupt:
+        click.echo("\nDownload cancelled.")
+        cleanup_partial_download(name)
+        click.echo("Partial files cleaned up.")
+        raise SystemExit(1)
+
+
+@models.command("delete")
+@click.argument("name")
+def models_delete(name):
+    """Delete a downloaded KB-Whisper model from the local HF cache."""
+    if name not in MODELS:
+        valid = ", ".join(MODELS.keys())
+        raise click.ClickException(
+            f"Unknown model '{name}'. Valid names: {valid}"
+        )
+
+    if not is_model_downloaded(name):
+        click.echo(f"kb-whisper-{name} is not downloaded.")
+        return
+
+    # Warn if deleting the active model (D-09)
+    cfg = load_config()
+    active_config_value = cfg.get("transcription", {}).get("model", "kb-whisper-medium")
+    active_alias = config_value_to_alias(active_config_value)
+    if name == active_alias:
+        click.echo(
+            f"Warning: {name} is your active model. "
+            "Local transcription will fail until you download a model."
+        )
+
+    freed = delete_model(name)
+    click.echo(f"Deleted kb-whisper-{name}. Freed {_human_size(freed)}.")

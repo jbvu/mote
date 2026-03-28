@@ -158,6 +158,14 @@ def test_record_stale_pid_allows_start(mote_home):
     mock_rec.assert_called_once()
 
 
+def test_models_group_help():
+    """mote models --help exits 0 and mentions transcription models."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["models", "--help"])
+    assert result.exit_code == 0
+    assert "Manage" in result.output or "transcription" in result.output.lower() or "model" in result.output.lower()
+
+
 def test_record_orphan_warning(mote_home):
     """mote record with existing WAV files warns about orphaned recordings."""
     recordings_dir = mote_home / "recordings"
