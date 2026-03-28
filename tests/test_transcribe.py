@@ -68,14 +68,14 @@ def test_get_wav_duration_short(tmp_path):
 
 
 @patch("mote.transcribe.Progress")
-@patch("mote.transcribe.WhisperModel")
-@patch("mote.transcribe.require_model_downloaded")
+@patch("faster_whisper.WhisperModel")
+@patch("mote.models.require_model_downloaded")
 def test_transcribe_local_calls_model(mock_require, mock_whisper_cls, mock_progress_cls, tmp_path):
     """transcribe_local calls WhisperModel with device=cpu, compute_type=int8, and correct repo ID."""
     wav = _make_wav(tmp_path / "rec.wav", duration_sec=2.0)
 
-    seg1 = _make_segment("Hej", 1.0)
-    seg2 = _make_segment(" världen", 2.0)
+    seg1 = _make_segment("Hej världen", 1.0)
+    seg2 = _make_segment(" från Sverige", 2.0)
     mock_model = MagicMock()
     mock_model.transcribe.return_value = (iter([seg1, seg2]), MagicMock())
     mock_whisper_cls.return_value = mock_model
@@ -96,20 +96,20 @@ def test_transcribe_local_calls_model(mock_require, mock_whisper_cls, mock_progr
     mock_model.transcribe.assert_called_once_with(
         str(wav), language="sv", log_progress=False
     )
-    assert result == "Hej världen"
+    assert result == "Hej världen från Sverige"
 
 
 @patch("mote.transcribe.Progress")
-@patch("mote.transcribe.WhisperModel")
-@patch("mote.transcribe.require_model_downloaded")
+@patch("faster_whisper.WhisperModel")
+@patch("mote.models.require_model_downloaded")
 def test_transcribe_local_returns_joined_text(mock_require, mock_whisper_cls, mock_progress_cls, tmp_path):
     """transcribe_local returns stripped joined segment text."""
     wav = _make_wav(tmp_path / "rec.wav", duration_sec=3.0)
 
     segments = [
-        _make_segment(" Segment one", 1.0),
-        _make_segment(" Segment two", 2.0),
-        _make_segment(" Segment three", 3.0),
+        _make_segment("Segment one.", 1.0),
+        _make_segment(" Segment two.", 2.0),
+        _make_segment(" Segment three.", 3.0),
     ]
     mock_model = MagicMock()
     mock_model.transcribe.return_value = (iter(segments), MagicMock())
@@ -121,10 +121,10 @@ def test_transcribe_local_returns_joined_text(mock_require, mock_whisper_cls, mo
     mock_progress.add_task.return_value = 0
 
     result = transcribe_local(wav, model_alias="medium", language="sv")
-    assert result == "Segment one Segment two Segment three"
+    assert result == "Segment one. Segment two. Segment three."
 
 
-@patch("mote.transcribe.require_model_downloaded")
+@patch("mote.models.require_model_downloaded")
 def test_transcribe_local_no_model(mock_require, tmp_path):
     """When require_model_downloaded raises ClickException, transcribe_local propagates it."""
     wav = _make_wav(tmp_path / "rec.wav", duration_sec=1.0)
@@ -135,8 +135,8 @@ def test_transcribe_local_no_model(mock_require, tmp_path):
 
 
 @patch("mote.transcribe.Progress")
-@patch("mote.transcribe.WhisperModel")
-@patch("mote.transcribe.require_model_downloaded")
+@patch("faster_whisper.WhisperModel")
+@patch("mote.models.require_model_downloaded")
 def test_transcribe_local_progress(mock_require, mock_whisper_cls, mock_progress_cls, tmp_path):
     """transcribe_local calls progress.update with segment.end values."""
     wav = _make_wav(tmp_path / "rec.wav", duration_sec=3.0)
@@ -168,7 +168,7 @@ def test_transcribe_local_progress(mock_require, mock_whisper_cls, mock_progress
 
 
 @patch("mote.transcribe.Progress")
-@patch("mote.transcribe.OpenAI")
+@patch("openai.OpenAI")
 def test_transcribe_openai_calls_api(mock_openai_cls, mock_progress_cls, tmp_path):
     """transcribe_openai creates OpenAI client and calls audio.transcriptions.create."""
     wav = _make_wav(tmp_path / "rec.wav", duration_sec=1.0)
@@ -193,7 +193,7 @@ def test_transcribe_openai_calls_api(mock_openai_cls, mock_progress_cls, tmp_pat
 
 
 @patch("mote.transcribe.Progress")
-@patch("mote.transcribe.OpenAI")
+@patch("openai.OpenAI")
 def test_transcribe_openai_language_passed(mock_openai_cls, mock_progress_cls, tmp_path):
     """transcribe_openai passes language param to API call."""
     wav = _make_wav(tmp_path / "rec.wav", duration_sec=1.0)
@@ -209,20 +209,16 @@ def test_transcribe_openai_language_passed(mock_openai_cls, mock_progress_cls, t
     transcribe_openai(wav, language="no", api_key="sk-test")
 
     call_kwargs = mock_client.audio.transcriptions.create.call_args
-    # language should be "no"
-    all_kwargs = {**call_kwargs[1]} if call_kwargs[1] else {}
-    if call_kwargs[0]:
-        pass  # positional args — but API uses keyword args
     assert "language" in str(call_kwargs)
 
 
 @patch("mote.transcribe._split_wav")
 @patch("mote.transcribe.Progress")
-@patch("mote.transcribe.OpenAI")
+@patch("openai.OpenAI")
 def test_transcribe_openai_chunking(mock_openai_cls, mock_progress_cls, mock_split, tmp_path):
     """For a WAV > 25MB, transcribe_openai splits into chunks and makes multiple API calls."""
-    # Create a large WAV (> 25MB): 800s * 16000 * 2 bytes = ~25.6MB
-    wav = _make_wav(tmp_path / "big.wav", duration_sec=800)
+    # Create a large WAV (> 25MB): 830s * 16000 * 2 bytes = 26,560,000 bytes > 26,214,400 (25MB)
+    wav = _make_wav(tmp_path / "big.wav", duration_sec=830)
 
     chunk1 = _make_wav(tmp_path / "chunk1.wav", duration_sec=1.0)
     chunk2 = _make_wav(tmp_path / "chunk2.wav", duration_sec=1.0)
@@ -249,10 +245,10 @@ def test_transcribe_openai_chunking(mock_openai_cls, mock_progress_cls, mock_spl
 
 @patch("mote.transcribe._split_wav")
 @patch("mote.transcribe.Progress")
-@patch("mote.transcribe.OpenAI")
+@patch("openai.OpenAI")
 def test_transcribe_openai_cleans_chunks(mock_openai_cls, mock_progress_cls, mock_split, tmp_path):
     """Temp chunk files are deleted even if an API call fails."""
-    wav = _make_wav(tmp_path / "big.wav", duration_sec=800)
+    wav = _make_wav(tmp_path / "big.wav", duration_sec=830)
 
     chunk1 = _make_wav(tmp_path / "chunk1.wav", duration_sec=1.0)
     chunk2 = _make_wav(tmp_path / "chunk2.wav", duration_sec=1.0)
