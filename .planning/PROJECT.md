@@ -15,14 +15,15 @@ Accurate Swedish-language meeting transcription that actually works — no exist
 - [x] TOML-based configuration with sensible defaults — Validated in Phase 1: Foundation
 - [x] CLI entry point with command groups — Validated in Phase 1: Foundation
 - [x] Manage local whisper models (download, delete, list) — Validated in Phase 3: Model Management
+- [x] Transcribe Swedish audio using local KBLab whisper models — Validated in Phase 4: Transcription Engine
+- [x] Transcribe via OpenAI Whisper API as alternative engine — Validated in Phase 4: Transcription Engine
+- [x] Support Norwegian, Danish, Finnish, English alongside Swedish — Validated in Phase 4: Transcription Engine
+- [x] Transcription progress reporting — Validated in Phase 4: Transcription Engine
 
 ### Active
 
 - [ ] Capture system audio from virtual meetings via BlackHole
-- [ ] Transcribe Swedish audio using local KBLab whisper models
-- [ ] Transcribe via OpenAI Whisper API as alternative engine
 - [ ] Transcribe via Mistral Voxtral API as alternative engine
-- [ ] Support Norwegian, Danish, Finnish, English alongside Swedish
 - [ ] CLI with manual start/stop recording and transcription
 - [ ] Web UI dashboard with recording controls and live status
 - [ ] Web UI settings page for configuration
@@ -32,7 +33,6 @@ Accurate Swedish-language meeting transcription that actually works — no exist
 - [ ] Push completed transcripts to Google Drive via API
 - [ ] TOML-based configuration with sensible defaults
 - [ ] Real-time audio level monitoring during recording
-- [ ] Transcription progress reporting
 
 ### Out of Scope
 
@@ -68,7 +68,7 @@ Accurate Swedish-language meeting transcription that actually works — no exist
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | BlackHole for audio capture | Standard macOS virtual audio device, no kernel extensions | — Pending |
-| faster-whisper over whisper.cpp | Python-native, CTranslate2 backend, good performance | — Pending |
+| faster-whisper over whisper.cpp | Python-native, CTranslate2 backend, good performance | Validated (Phase 4) |
 | Flask over FastAPI | Simpler for SSE + template rendering, sufficient for single-user tool | — Pending |
 | TOML config over YAML/JSON | Human-readable, good Python support, standard for Python tools | Validated (Phase 1) |
 | SSE over WebSocket | Simpler for one-way server→client updates, no extra dependencies | — Pending |
@@ -94,4 +94,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-28 after Phase 3 completion — model management (list/download/delete), 102 passing tests*
+*Last updated: 2026-03-28 after Phase 4 completion — transcription engine (KB-Whisper local + OpenAI API, auto-transcribe in CLI), 127 passing tests*
