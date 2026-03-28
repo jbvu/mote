@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-03-28T11:17:28.490Z"
-last_activity: 2026-03-27
+status: verifying
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-28T15:00:06.279Z"
+last_activity: 2026-03-28
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  completed_phases: 3
+  total_plans: 6
+  completed_plans: 6
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Accurate Swedish-language meeting transcription that actually works
-**Current focus:** Phase 02 — audio-capture
+**Current focus:** Phase 03 — model-management
 
 ## Current Position
 
-Phase: 02 (audio-capture) — EXECUTING
-Plan: 2 of 2
-Status: Ready to execute
-Last activity: 2026-03-27
+Phase: 03 (model-management) — EXECUTING
+Plan: 1 of 1
+Status: Phase complete — ready for verification
+Last activity: 2026-03-28
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -56,6 +56,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01-foundation P02 | 2 | 2 tasks | 4 files |
 | Phase 01-foundation P03 | 1 | 1 tasks | 1 files |
 | Phase 02-audio-capture P01 | 2 | 1 tasks | 2 files |
+| Phase 03-model-management P01 | 4 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,9 @@ Recent decisions affecting current work:
 - [Phase 02-audio-capture]: Ctrl+C hint printed once before Live context — simpler than Group/newline in Live
 - [Phase 02-audio-capture]: Patch target for mocked CLI functions is mote.cli.* not mote.audio.* — Click imports functions into cli module namespace
 - [Phase 02-audio-capture]: find_blackhole_device includes numeric 'index' key via enumerate() — required for sd.InputStream(device=int)
+- [Phase 03-model-management]: Use try_to_load_from_cache (not WhisperModel) for download check — avoids loading GB into RAM
+- [Phase 03-model-management]: ALLOW_PATTERNS mirrors faster-whisper's internal list exactly — mismatched patterns cause silent re-download at transcription time
+- [Phase 03-model-management]: config_value_to_alias() bridges kb-whisper-{size} config format to CLI alias — both naming conventions coexist
 
 ### Pending Todos
 
@@ -90,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T11:17:28.483Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-model-management/03-CONTEXT.md
+Last session: 2026-03-28T15:00:06.273Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: None

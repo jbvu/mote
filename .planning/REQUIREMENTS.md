@@ -23,10 +23,10 @@
 
 ### Model Management
 
-- [ ] **MOD-01**: User can list available and downloaded models
-- [ ] **MOD-02**: User can download a specific KB-Whisper model with progress display
-- [ ] **MOD-03**: User can delete a downloaded model
-- [ ] **MOD-04**: Tool refuses to transcribe locally if no model is downloaded and shows clear instructions
+- [x] **MOD-01**: User can list available and downloaded models
+- [x] **MOD-02**: User can download a specific KB-Whisper model with progress display
+- [x] **MOD-03**: User can delete a downloaded model
+- [x] **MOD-04**: Tool refuses to transcribe locally if no model is downloaded and shows clear instructions
 
 ### Output
 
@@ -45,7 +45,7 @@
 ### CLI
 
 - [ ] **CLI-01**: `mote record` starts recording with live status display
-- [ ] **CLI-02**: `mote models list/download/delete` manages transcription models
+- [x] **CLI-02**: `mote models list/download/delete` manages transcription models
 - [ ] **CLI-03**: `mote config` views or edits configuration
 - [ ] **CLI-04**: `mote status` shows current recording/transcription state
 - [ ] **CLI-05**: `mote list` shows recent transcripts
@@ -116,11 +116,11 @@
 | CLI-01 | Phase 2 | Pending |
 | CLI-04 | Phase 2 | Pending |
 | CLI-06 | Phase 2 | Pending |
-| MOD-01 | Phase 3 | Pending |
-| MOD-02 | Phase 3 | Pending |
-| MOD-03 | Phase 3 | Pending |
-| MOD-04 | Phase 3 | Pending |
-| CLI-02 | Phase 3 | Pending |
+| MOD-01 | Phase 3 | Complete |
+| MOD-02 | Phase 3 | Complete |
+| MOD-03 | Phase 3 | Complete |
+| MOD-04 | Phase 3 | Complete |
+| CLI-02 | Phase 3 | Complete |
 | TRX-01 | Phase 4 | Pending |
 | TRX-02 | Phase 4 | Pending |
 | TRX-03 | Phase 4 | Pending |

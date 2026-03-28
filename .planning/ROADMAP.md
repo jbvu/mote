@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Foundation** - Project scaffolding and configuration system
 - [x] **Phase 2: Audio Capture** - BlackHole recording with live status feedback (completed 2026-03-27)
-- [ ] **Phase 3: Model Management** - Download, list, and delete KB-Whisper models
+- [x] **Phase 3: Model Management** - Download, list, and delete KB-Whisper models (completed 2026-03-28)
 - [ ] **Phase 4: Transcription Engine** - Local KB-Whisper and OpenAI Whisper transcription
 - [ ] **Phase 5: Output and Transcript Management** - Formatted output files and transcript listing
 
@@ -60,10 +60,10 @@ Plans:
   2. `mote models download <name>` downloads the chosen model with a progress bar showing size and percentage
   3. `mote models delete <name>` removes a downloaded model from disk
   4. Attempting local transcription with no model downloaded shows a clear error with download instructions
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 03-01-PLAN.md — Model management: list/download/delete KB-Whisper models with Rich UI
+- [x] 03-01-PLAN.md — Model management: list/download/delete KB-Whisper models with Rich UI
 
 ### Phase 4: Transcription Engine
 **Goal**: User can transcribe a recorded WAV file into Swedish text using local KB-Whisper or OpenAI Whisper as fallback
@@ -103,6 +103,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/3 | Gap closure planned | - |
 | 2. Audio Capture | 2/2 | Complete   | 2026-03-27 |
-| 3. Model Management | 0/1 | Not started | - |
+| 3. Model Management | 1/1 | Complete   | 2026-03-28 |
 | 4. Transcription Engine | 0/TBD | Not started | - |
 | 5. Output and Transcript Management | 0/TBD | Not started | - |
