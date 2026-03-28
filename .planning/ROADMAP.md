@@ -75,10 +75,10 @@ Plans:
   3. User can override the engine per-recording with a CLI flag (e.g., `mote record --engine openai`)
   4. User can set the language (sv, no, da, fi, en) via config or a CLI flag
   5. Transcription completes and produces a result file without leaving the WAV file on disk
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 04-01-PLAN.md — Core transcription module: transcribe.py with local/OpenAI engines, config fix, openai dependency
+- [x] 04-01-PLAN.md — Core transcription module: transcribe.py with local/OpenAI engines, config fix, openai dependency
 - [ ] 04-02-PLAN.md — CLI integration: wire transcription into record command with engine/language/no-transcribe flags
 
 ### Phase 5: Output and Transcript Management
@@ -105,5 +105,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Foundation | 2/3 | Gap closure planned | - |
 | 2. Audio Capture | 2/2 | Complete   | 2026-03-27 |
 | 3. Model Management | 1/1 | Complete   | 2026-03-28 |
-| 4. Transcription Engine | 0/2 | Planned | - |
+| 4. Transcription Engine | 1/2 | In Progress|  |
 | 5. Output and Transcript Management | 0/TBD | Not started | - |

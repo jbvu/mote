@@ -14,11 +14,11 @@
 
 ### Transcription
 
-- [ ] **TRX-01**: User can transcribe recorded audio using local KBLab KB-Whisper models
-- [ ] **TRX-02**: User can transcribe recorded audio using OpenAI Whisper API
-- [ ] **TRX-03**: User can select transcription engine via config or CLI flag
-- [ ] **TRX-04**: User can select language (sv, no, da, fi, en) via config or CLI flag
-- [ ] **TRX-05**: User sees transcription progress as percentage during processing
+- [x] **TRX-01**: User can transcribe recorded audio using local KBLab KB-Whisper models
+- [x] **TRX-02**: User can transcribe recorded audio using OpenAI Whisper API
+- [x] **TRX-03**: User can select transcription engine via config or CLI flag
+- [x] **TRX-04**: User can select language (sv, no, da, fi, en) via config or CLI flag
+- [x] **TRX-05**: User sees transcription progress as percentage during processing
 - [ ] **TRX-06**: Transcription runs automatically after recording stops
 
 ### Model Management
@@ -46,7 +46,7 @@
 
 - [ ] **CLI-01**: `mote record` starts recording with live status display
 - [x] **CLI-02**: `mote models list/download/delete` manages transcription models
-- [ ] **CLI-03**: `mote config` views or edits configuration
+- [x] **CLI-03**: `mote config` views or edits configuration
 - [ ] **CLI-04**: `mote status` shows current recording/transcription state
 - [ ] **CLI-05**: `mote list` shows recent transcripts
 - [ ] **CLI-06**: Ctrl+C during recording gracefully stops and triggers transcription
@@ -121,13 +121,13 @@
 | MOD-03 | Phase 3 | Complete |
 | MOD-04 | Phase 3 | Complete |
 | CLI-02 | Phase 3 | Complete |
-| TRX-01 | Phase 4 | Pending |
-| TRX-02 | Phase 4 | Pending |
-| TRX-03 | Phase 4 | Pending |
-| TRX-04 | Phase 4 | Pending |
-| TRX-05 | Phase 4 | Pending |
+| TRX-01 | Phase 4 | Complete |
+| TRX-02 | Phase 4 | Complete |
+| TRX-03 | Phase 4 | Complete |
+| TRX-04 | Phase 4 | Complete |
+| TRX-05 | Phase 4 | Complete |
 | TRX-06 | Phase 4 | Pending |
-| CLI-03 | Phase 4 | Pending |
+| CLI-03 | Phase 4 | Complete |
 | OUT-01 | Phase 5 | Pending |
 | OUT-02 | Phase 5 | Pending |
 | OUT-03 | Phase 5 | Pending |
