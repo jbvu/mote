@@ -176,7 +176,10 @@ def status_command():
 @click.option("--name", default=None, help="Optional name for output files (e.g., 'standup').")
 @click.option("--output-format", "extra_formats", multiple=True,
               type=click.Choice(["json"]), help="Additional output formats.")
-def record_command(engine, language, no_transcribe, name, extra_formats):
+@click.option("--destination", "destinations_override", multiple=True,
+              type=click.Choice(["local", "drive"]),
+              help="Override active destinations for this run.")
+def record_command(engine, language, no_transcribe, name, extra_formats, destinations_override):
     """Start recording system audio via BlackHole."""
     config_dir = get_config_dir()
     pid_path = config_dir / "mote.pid"
@@ -311,11 +314,19 @@ def record_command(engine, language, no_transcribe, name, extra_formats):
             formats.append(fmt)
     sanitized_name = _sanitize_name(name) if name else None
 
+    if destinations_override:
+        resolved_destinations = list(destinations_override)
+    else:
+        resolved_destinations = cfg.get("destinations", {}).get("active", ["local"])
+
     while True:
         try:
             _run_transcription(
                 wav_path, resolved_engine, resolved_language, model_alias,
                 api_key, output_dir, formats, sanitized_name,
+                destinations=resolved_destinations,
+                config_dir=config_dir,
+                cfg=cfg,
             )
             break
         except click.ClickException:
@@ -417,6 +428,105 @@ def audio_restore_command():
         raise click.ClickException(f"Failed to switch to '{device}'. Is the device available?")
 
 
+# ---------------------------------------------------------------------------
+# auth command group
+# ---------------------------------------------------------------------------
+
+
+@cli.group()
+def auth():
+    """Manage third-party service authentication."""
+    pass
+
+
+@auth.command("google")
+def auth_google():
+    """Authenticate with Google Drive (OAuth2 browser flow)."""
+    from mote.drive import get_token_path, get_credentials, run_auth_flow
+
+    config_dir = get_config_dir()
+    token_path = get_token_path(config_dir)
+
+    creds = get_credentials(token_path)
+    if creds is not None:
+        # Already authenticated — show status (D-10)
+        email = "authenticated (email unavailable)"
+        try:
+            from googleapiclient.discovery import build as build_svc
+            service = build_svc("oauth2", "v2", credentials=creds)
+            user_info = service.userinfo().get().execute()
+            email = user_info.get("email", "authenticated (email unavailable)")
+        except Exception:
+            pass
+
+        click.echo(f"Google Drive: {email}")
+        click.echo(f"Token: {token_path}")
+        if not click.confirm("Re-authenticate?", default=False):
+            return
+
+    creds = run_auth_flow(token_path)
+
+    # Show success with email (D-11)
+    email = "authenticated (email unavailable)"
+    try:
+        from googleapiclient.discovery import build as build_svc
+        service = build_svc("oauth2", "v2", credentials=creds)
+        user_info = service.userinfo().get().execute()
+        email = user_info.get("email", "authenticated (email unavailable)")
+    except Exception:
+        pass
+
+    click.echo(f"Authenticated with Google Drive as {email}")
+    click.echo(f"Token stored at {token_path}")
+
+
+# ---------------------------------------------------------------------------
+# upload command
+# ---------------------------------------------------------------------------
+
+
+@cli.command("upload")
+@click.argument("file", required=False, type=click.Path(exists=True, path_type=Path))
+@click.option("--last", is_flag=True, default=False, help="Upload the most recent transcript.")
+def upload_command(file, last):
+    """Upload a transcript file to Google Drive."""
+    if file is None and not last:
+        raise click.ClickException(
+            "Provide a file path or use --last to upload the most recent transcript."
+        )
+
+    cfg = load_config()
+    config_dir = get_config_dir()
+    folder_name = cfg.get("destinations", {}).get("drive", {}).get("folder_name", "Mote Transcripts")
+
+    if last:
+        output_dir = Path(cfg.get("output", {}).get("dir", "~/Documents/mote")).expanduser()
+        records = list_transcripts(output_dir)
+        if not records:
+            raise click.ClickException("No transcripts found.")
+        # Find all files sharing the stem of the most recent transcript
+        latest_name = records[0]["filename"]
+        latest_stem = Path(latest_name).stem
+        files_to_upload = [
+            p for p in output_dir.iterdir()
+            if p.stem == latest_stem and p.suffix in (".md", ".txt", ".json")
+        ]
+        if not files_to_upload:
+            raise click.ClickException(f"Could not find transcript files for {latest_name}")
+    else:
+        files_to_upload = [file]
+
+    try:
+        from mote.drive import upload_transcripts
+        upload_transcripts(config_dir, files_to_upload, folder_name)
+        names = ", ".join(p.name for p in files_to_upload)
+        click.echo(f"Uploaded to Google Drive: {names}")
+    except RuntimeError as e:
+        raise click.ClickException(str(e))
+    except Exception as e:
+        raise click.ClickException(f"Upload failed: {e}")
+
+
 @cli.command("transcribe")
 @click.argument("wav_file", type=click.Path(exists=True, path_type=Path))
 @click.option("--engine", type=click.Choice(["local", "openai"]), default=None,
@@ -426,7 +536,10 @@ def audio_restore_command():
 @click.option("--name", default=None, help="Optional name for output files.")
 @click.option("--output-format", "extra_formats", multiple=True,
               type=click.Choice(["json"]), help="Additional output formats.")
-def transcribe_command(wav_file, engine, language, name, extra_formats):
+@click.option("--destination", "destinations_override", multiple=True,
+              type=click.Choice(["local", "drive"]),
+              help="Override active destinations for this run.")
+def transcribe_command(wav_file, engine, language, name, extra_formats, destinations_override):
     """Transcribe an existing WAV file."""
     cfg = load_config()
     errors, warnings = validate_config(cfg)
@@ -453,6 +566,11 @@ def transcribe_command(wav_file, engine, language, name, extra_formats):
             formats.append(fmt)
     sanitized_name = _sanitize_name(name) if name else None
 
+    if destinations_override:
+        resolved_destinations = list(destinations_override)
+    else:
+        resolved_destinations = cfg.get("destinations", {}).get("active", ["local"])
+
     # Use WAV file mtime as timestamp (per Pitfall 5 / D-11)
     ts = datetime.fromtimestamp(wav_file.stat().st_mtime)
 
@@ -474,6 +592,9 @@ def transcribe_command(wav_file, engine, language, name, extra_formats):
                 wav_file, resolved_engine, resolved_language, model_alias,
                 api_key, output_dir, formats, sanitized_name,
                 delete_wav=False, timestamp=ts,
+                destinations=resolved_destinations,
+                config_dir=get_config_dir(),
+                cfg=cfg,
             )
             break
         except click.ClickException:
@@ -501,6 +622,9 @@ def _run_transcription(
     name: str | None,
     delete_wav: bool = True,
     timestamp: datetime | None = None,
+    destinations: list[str] | None = None,
+    config_dir: Path | None = None,
+    cfg: dict | None = None,
 ) -> list[Path]:
     """Shared post-recording transcription pipeline.
 
@@ -514,6 +638,20 @@ def _run_transcription(
         transcript, output_dir, formats, duration, engine,
         language, model_alias, name, timestamp=timestamp,
     )
+
+    # Drive upload (D-05: local always written first, D-09: failures are warnings)
+    active_destinations = destinations or (cfg or {}).get("destinations", {}).get("active", ["local"])
+    if "drive" in active_destinations:
+        try:
+            from mote.drive import upload_transcripts
+            effective_config_dir = config_dir or get_config_dir()
+            folder_name = (cfg or {}).get("destinations", {}).get("drive", {}).get("folder_name", "Mote Transcripts")
+            upload_transcripts(effective_config_dir, written, folder_name)
+        except Exception as e:
+            click.echo(
+                f"Warning: Drive upload failed: {e}. "
+                "Transcripts saved locally. Run 'mote upload' to retry."
+            )
 
     if delete_wav:
         wav_path.unlink(missing_ok=True)
