@@ -205,6 +205,61 @@ def list_command(show_all):
     console.print(table)
 
 
+@cli.command("transcribe")
+@click.argument("wav_file", type=click.Path(exists=True, path_type=Path))
+@click.option("--engine", type=click.Choice(["local", "openai"]), default=None,
+              help="Transcription engine (overrides config).")
+@click.option("--language", type=click.Choice(["sv", "no", "da", "fi", "en"]), default=None,
+              help="Language code (overrides config).")
+@click.option("--name", default=None, help="Optional name for output files.")
+@click.option("--output-format", "extra_formats", multiple=True,
+              type=click.Choice(["json"]), help="Additional output formats.")
+def transcribe_command(wav_file, engine, language, name, extra_formats):
+    """Transcribe an existing WAV file."""
+    cfg = load_config()
+    resolved_engine = engine or cfg.get("transcription", {}).get("engine", "local")
+    resolved_language = language or cfg.get("transcription", {}).get("language", "sv")
+    model_config = cfg.get("transcription", {}).get("model", "kb-whisper-medium")
+    model_alias = config_value_to_alias(model_config) or "medium"
+    api_key = cfg.get("api_keys", {}).get("openai") or None
+    if api_key == "":
+        api_key = None
+
+    output_cfg = cfg.get("output", {})
+    output_dir = Path(output_cfg.get("dir", "~/Documents/mote")).expanduser()
+    formats = list(output_cfg.get("format", ["markdown", "txt"]))
+    for fmt in extra_formats:
+        if fmt not in formats:
+            formats.append(fmt)
+    sanitized_name = _sanitize_name(name) if name else None
+
+    # Use WAV file mtime as timestamp (per Pitfall 5 / D-11)
+    ts = datetime.fromtimestamp(wav_file.stat().st_mtime)
+
+    # Overwrite detection (D-11)
+    from mote.output import _build_filename
+    for fmt_name, ext in [("markdown", "md"), ("txt", "txt"), ("json", "json")]:
+        if fmt_name in formats:
+            predicted = output_dir / _build_filename(ts, sanitized_name, ext)
+            if predicted.exists():
+                if not click.confirm(
+                    f"Output file {predicted.name} already exists. Overwrite?",
+                    default=False,
+                ):
+                    raise click.ClickException("Aborted — existing files not overwritten.")
+
+    try:
+        _run_transcription(
+            wav_file, resolved_engine, resolved_language, model_alias,
+            api_key, output_dir, formats, sanitized_name,
+            delete_wav=False, timestamp=ts,
+        )
+    except click.ClickException:
+        raise
+    except Exception as e:
+        raise click.ClickException(f"Transcription failed: {e}\nWAV kept at: {wav_file}")
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
