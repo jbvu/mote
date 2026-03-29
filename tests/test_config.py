@@ -1,9 +1,12 @@
 """Unit tests for mote configuration module."""
 
+import os
 import stat
+import time
 import tomlkit
 import pytest
 from pathlib import Path
+from unittest.mock import patch
 
 from mote.config import (
     get_config_dir,
@@ -11,6 +14,8 @@ from mote.config import (
     ensure_config,
     load_config,
     set_config_value,
+    validate_config,
+    cleanup_old_wavs,
 )
 
 
@@ -114,3 +119,149 @@ def test_set_config_preserves_permissions(mote_home):
     path = get_config_path()
     mode = stat.S_IMODE(path.stat().st_mode)
     assert mode == 0o600
+
+
+# ---------------------------------------------------------------------------
+# validate_config
+# ---------------------------------------------------------------------------
+
+
+def _valid_cfg(tmp_path):
+    """Build a minimal valid config dict for tests."""
+    return {
+        "transcription": {
+            "engine": "local",
+            "model": "kb-whisper-medium",
+        },
+        "output": {
+            "dir": str(tmp_path / "transcripts"),
+        },
+        "api_keys": {
+            "openai": "",
+        },
+    }
+
+
+def test_validate_config_valid(tmp_path):
+    """Valid config returns ([], []) — no errors, no warnings."""
+    cfg = _valid_cfg(tmp_path)
+    with (
+        patch("mote.config.config_value_to_alias", return_value="medium"),
+        patch("mote.config.is_model_downloaded", return_value=True),
+    ):
+        errors, warnings = validate_config(cfg)
+    assert errors == []
+    assert warnings == []
+
+
+def test_validate_config_invalid_engine(tmp_path):
+    """engine='invalid' returns error containing 'Invalid engine'."""
+    cfg = _valid_cfg(tmp_path)
+    cfg["transcription"]["engine"] = "invalid"
+    with (
+        patch("mote.config.config_value_to_alias", return_value="medium"),
+        patch("mote.config.is_model_downloaded", return_value=True),
+    ):
+        errors, warnings = validate_config(cfg)
+    assert any("Invalid engine" in e for e in errors)
+
+
+def test_validate_config_missing_model(tmp_path):
+    """engine=local with undownloaded model returns error containing 'not downloaded'."""
+    cfg = _valid_cfg(tmp_path)
+    with (
+        patch("mote.config.config_value_to_alias", return_value="medium"),
+        patch("mote.config.is_model_downloaded", return_value=False),
+    ):
+        errors, warnings = validate_config(cfg)
+    assert any("not downloaded" in e for e in errors)
+
+
+def test_validate_config_openai_no_key_warning(tmp_path):
+    """engine=openai with no API key returns warning (not error) containing 'no api_keys.openai'."""
+    cfg = _valid_cfg(tmp_path)
+    cfg["transcription"]["engine"] = "openai"
+    cfg["api_keys"]["openai"] = ""
+    errors, warnings = validate_config(cfg)
+    assert errors == []
+    assert any("no api_keys.openai" in w for w in warnings)
+
+
+def test_validate_config_v1_compat(tmp_path):
+    """Config dict with no [cleanup] section returns no errors (D-06)."""
+    cfg = _valid_cfg(tmp_path)
+    # No cleanup section — v1 config
+    with (
+        patch("mote.config.config_value_to_alias", return_value="medium"),
+        patch("mote.config.is_model_downloaded", return_value=True),
+    ):
+        errors, warnings = validate_config(cfg)
+    assert errors == []
+
+
+def test_validate_config_bad_output_dir(tmp_path):
+    """Output dir is a file (not dir) returns error containing 'not a directory'."""
+    cfg = _valid_cfg(tmp_path)
+    # Create a file where output dir should be
+    bad_path = tmp_path / "output_is_a_file"
+    bad_path.write_text("I am a file")
+    cfg["output"]["dir"] = str(bad_path)
+    with (
+        patch("mote.config.config_value_to_alias", return_value="medium"),
+        patch("mote.config.is_model_downloaded", return_value=True),
+    ):
+        errors, warnings = validate_config(cfg)
+    assert any("not a directory" in e for e in errors)
+
+
+# ---------------------------------------------------------------------------
+# cleanup_old_wavs
+# ---------------------------------------------------------------------------
+
+
+def test_cleanup_old_wavs_deletes_expired(tmp_path):
+    """WAV older than retention_days is deleted."""
+    recordings_dir = tmp_path / "recordings"
+    recordings_dir.mkdir()
+    old_wav = recordings_dir / "old.wav"
+    old_wav.write_bytes(b"RIFF")
+    # Set mtime to 10 days ago
+    old_time = time.time() - (10 * 86400)
+    os.utime(old_wav, (old_time, old_time))
+
+    deleted = cleanup_old_wavs(recordings_dir, retention_days=7)
+    assert old_wav in deleted
+    assert not old_wav.exists()
+
+
+def test_cleanup_old_wavs_keeps_recent(tmp_path):
+    """WAV newer than retention_days is kept."""
+    recordings_dir = tmp_path / "recordings"
+    recordings_dir.mkdir()
+    recent_wav = recordings_dir / "recent.wav"
+    recent_wav.write_bytes(b"RIFF")
+    # Leave mtime as-is (just created = very recent)
+
+    deleted = cleanup_old_wavs(recordings_dir, retention_days=7)
+    assert deleted == []
+    assert recent_wav.exists()
+
+
+def test_cleanup_old_wavs_empty_dir(tmp_path):
+    """Nonexistent dir returns empty list."""
+    nonexistent = tmp_path / "no_such_dir"
+    deleted = cleanup_old_wavs(nonexistent, retention_days=7)
+    assert deleted == []
+
+
+# ---------------------------------------------------------------------------
+# Default config has [cleanup] section
+# ---------------------------------------------------------------------------
+
+
+def test_default_config_has_cleanup_section(mote_home):
+    """ensure_config() creates config with [cleanup] and wav_retention_days = 7."""
+    ensure_config()
+    cfg = load_config()
+    assert "cleanup" in cfg
+    assert cfg["cleanup"]["wav_retention_days"] == 7
