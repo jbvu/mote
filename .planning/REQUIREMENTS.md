@@ -69,8 +69,8 @@
 
 ### Audio
 
-- [ ] **AUD-05**: Audio output auto-switches to BlackHole before recording and restores original after; graceful degradation if SwitchAudioSource not installed
-- [ ] **AUD-06**: User is warned if sustained silence (>30s) detected during recording; does not stop recording
+- [x] **AUD-05**: Audio output auto-switches to BlackHole before recording and restores original after; graceful degradation if SwitchAudioSource not installed
+- [x] **AUD-06**: User is warned if sustained silence (>30s) detected during recording; does not stop recording
 
 ### Integration
 
@@ -156,8 +156,8 @@
 | INT-02 | Phase 6 | Complete |
 | CLI-07 | Phase 6 | Complete |
 | CLI-08 | Phase 6 | Complete |
-| AUD-05 | Phase 7 | Pending |
-| AUD-06 | Phase 7 | Pending |
+| AUD-05 | Phase 7 | Complete |
+| AUD-06 | Phase 7 | Complete |
 | INT-03 | Phase 8 | Pending |
 | INT-04 | Phase 8 | Pending |
 | INT-05 | Phase 9 | Pending |

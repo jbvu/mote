@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 07-audio-improvements-01-PLAN.md
-last_updated: "2026-03-29T19:55:56.284Z"
+status: verifying
+stopped_at: Completed 07-audio-improvements-02-PLAN.md
+last_updated: "2026-03-29T19:58:18.719Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 Phase: 07 (audio-improvements) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-29
 
 Progress: [░░░░░░░░░░] 0%
@@ -65,6 +65,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06 P02 | 480 | 2 tasks | 2 files |
 | Phase 06 P03 | 447 | 2 tasks | 2 files |
 | Phase 07-audio-improvements P01 | 125 | 2 tasks | 2 files |
+| Phase 07-audio-improvements P02 | 15 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -115,6 +116,9 @@ Recent decisions affecting current work:
 - [Phase 06]: mote cleanup is top-level command; mote config validate is config subcommand — matches D-05 and D-15 placement decisions
 - [Phase 07-audio-improvements]: SilenceTracker class over inline variables — cleaner for unit testing via time.monotonic mock
 - [Phase 07-audio-improvements]: SILENCE_THRESHOLD_DB = -50.0 and SILENCE_WARN_SECONDS = 30 hardcoded per D-08
+- [Phase 07-audio-improvements]: Crash recovery check is first action in record_command, before PID check — ensures audio restored even with stale PID
+- [Phase 07-audio-improvements]: try/finally wraps record_session only (not transcription) — audio restored immediately when recording stops, not after long transcription
+- [Phase 07-audio-improvements]: Failed switch to BlackHole immediately deletes audio_restore.json to prevent orphaned restore file (Pitfall 1)
 
 ### Pending Todos
 
@@ -127,6 +131,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-29T19:55:56.279Z
-Stopped at: Completed 07-audio-improvements-01-PLAN.md
+Last session: 2026-03-29T19:58:18.711Z
+Stopped at: Completed 07-audio-improvements-02-PLAN.md
 Resume file: None
