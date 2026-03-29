@@ -28,8 +28,8 @@ Accurate Swedish-language meeting transcription that actually works — no exist
 
 ### Active (v2.0)
 
-- [ ] Configurable transcript destinations (Google Drive, NotebookLM) via config + flag
-- [ ] Google Drive upload via official API with OAuth2 (`mote auth google`)
+- [x] Configurable transcript destinations (Google Drive, NotebookLM) via config + flag — Validated in Phase 8: Google Drive Integration
+- [x] Google Drive upload via official API with OAuth2 (`mote auth google`) — Validated in Phase 8: Google Drive Integration
 - [ ] NotebookLM upload via `notebooklm-py` (`mote auth notebooklm`)
 - [x] Auto-switch BlackHole audio routing before/after recording — Validated in Phase 7: Audio Improvements
 - [x] Silence detection warning during recording — Validated in Phase 7: Audio Improvements
@@ -116,4 +116,4 @@ This document evolves at phase transitions and milestone boundaries.
 - JSON output format
 
 ---
-*Last updated: 2026-03-29 — Phase 7 complete, 227 passing tests*
+*Last updated: 2026-03-29 — Phase 8 complete, Google Drive integration delivered*
