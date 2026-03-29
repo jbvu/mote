@@ -1,5 +1,6 @@
 """Unit tests for mote output module."""
 
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -332,3 +333,60 @@ def test_list_nonexistent_dir(tmp_path):
     nonexistent = tmp_path / "does_not_exist"
     results = list_transcripts(nonexistent)
     assert results == []
+
+
+# ---------------------------------------------------------------------------
+# write_transcript — JSON format
+# ---------------------------------------------------------------------------
+
+
+def test_write_json(tmp_path):
+    """write_transcript with formats=['json'] produces a .json file in output_dir."""
+    paths = write_transcript("test text", tmp_path, ["json"], 90.0, "local", "sv", "medium", timestamp=_TS)
+    assert len(paths) == 1
+    assert paths[0].suffix == ".json"
+    assert paths[0].exists()
+
+
+def test_write_json_fields(tmp_path):
+    """JSON file contains exactly 7 keys: date, duration, words, engine, language, model, transcript."""
+    paths = write_transcript("hello world", tmp_path, ["json"], 120.0, "openai", "en", "whisper-1", timestamp=_TS)
+    data = json.loads(paths[0].read_text(encoding="utf-8"))
+    assert set(data.keys()) == {"date", "duration", "words", "engine", "language", "model", "transcript"}
+    assert data["duration"] == 120
+    assert data["words"] == 2
+    assert data["engine"] == "openai"
+    assert data["transcript"] == "hello world"
+
+
+def test_write_json_field_types(tmp_path):
+    """date is ISO string, duration is int, words is int, transcript is string."""
+    paths = write_transcript("one two three", tmp_path, ["json"], 65.7, "local", "sv", "medium", timestamp=_TS)
+    data = json.loads(paths[0].read_text(encoding="utf-8"))
+    assert isinstance(data["date"], str)
+    assert isinstance(data["duration"], int)
+    assert isinstance(data["words"], int)
+    assert isinstance(data["transcript"], str)
+
+
+def test_write_json_swedish_chars(tmp_path):
+    """Swedish chars stored as literal UTF-8 (no \\u escapes)."""
+    swedish = "Hej och v\u00e4lkomna till m\u00f6tet"
+    paths = write_transcript(swedish, tmp_path, ["json"], 60.0, "local", "sv", "medium", timestamp=_TS)
+    raw = paths[0].read_text(encoding="utf-8")
+    assert "\u00e4" in raw  # a-umlaut as literal character
+    assert "\\u00e4" not in raw  # NOT as escape sequence
+
+
+def test_write_json_alongside_md(tmp_path):
+    """formats=['markdown', 'txt', 'json'] produces 3 files."""
+    paths = write_transcript("text", tmp_path, ["markdown", "txt", "json"], 30.0, "local", "sv", "medium", timestamp=_TS)
+    assert len(paths) == 3
+    exts = {p.suffix for p in paths}
+    assert exts == {".md", ".txt", ".json"}
+
+
+def test_write_json_filename(tmp_path):
+    """JSON filename follows same pattern as md/txt (YYYY-MM-DD_HHMM[_name].json)."""
+    paths = write_transcript("text", tmp_path, ["json"], 30.0, "local", "sv", "medium", name="standup", timestamp=_TS)
+    assert paths[0].name == "2026-03-28_1430_standup.json"
