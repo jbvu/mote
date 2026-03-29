@@ -128,10 +128,10 @@ Plans:
   2. If SwitchAudioSource is not installed, `mote record` starts normally with a one-time advisory message instead of failing
   3. If silence is sustained for more than 30 seconds during recording, a warning is printed to the terminal without stopping the recording
   4. After a crash or force-quit with BlackHole active, the next `mote record` startup detects the unrestored state and recovers to the original device
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 07-01-PLAN.md — Silence detection: constants, make_display extension, SilenceTracker class, drain loop integration
+- [x] 07-01-PLAN.md — Silence detection: constants, make_display extension, SilenceTracker class, drain loop integration
 - [ ] 07-02-PLAN.md — Audio switching: SwitchAudioSource helpers, auto-switch in record_command, crash recovery, mote audio restore command
 
 ### Phase 8: Google Drive Integration
@@ -170,6 +170,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 4. Transcription Engine | 2/2 | Complete   | 2026-03-28 |
 | 5. Output and Transcript Management | 2/2 | Complete   | 2026-03-28 |
 | 6. CLI Polish and Config Reliability | 3/3 | Complete   | 2026-03-29 |
-| 7. Audio Improvements | 0/2 | Planned | - |
+| 7. Audio Improvements | 1/2 | In Progress|  |
 | 8. Google Drive Integration | 0/? | Not started | - |
 | 9. NotebookLM Integration | 0/? | Not started | - |
