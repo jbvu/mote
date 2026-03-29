@@ -21,18 +21,18 @@ Accurate Swedish-language meeting transcription that actually works — no exist
 - [x] Transcription progress reporting — Validated in Phase 4: Transcription Engine
 - [x] Output transcripts as Markdown and plain text — Validated in Phase 5: Output and Transcript Management
 - [x] List past transcripts via CLI — Validated in Phase 5: Output and Transcript Management
+- [x] `mote transcribe <file>` for existing WAV files — Validated in Phase 6: CLI Polish and Config Reliability
+- [x] Retry failed transcriptions + orphaned WAV detection — Validated in Phase 6: CLI Polish and Config Reliability
+- [x] Config validation on startup — Validated in Phase 6: CLI Polish and Config Reliability
+- [x] JSON output format — Validated in Phase 6: CLI Polish and Config Reliability
 
 ### Active (v2.0)
 
 - [ ] Configurable transcript destinations (Google Drive, NotebookLM) via config + flag
 - [ ] Google Drive upload via official API with OAuth2 (`mote auth google`)
 - [ ] NotebookLM upload via `notebooklm-py` (`mote auth notebooklm`)
-- [ ] `mote transcribe <file>` for existing WAV files
-- [ ] Retry failed transcriptions + orphaned WAV detection
 - [ ] Auto-switch BlackHole audio routing before/after recording
 - [ ] Silence detection warning during recording
-- [ ] Config validation on startup
-- [ ] JSON output format
 
 ### Future (v3+)
 
@@ -116,4 +116,4 @@ This document evolves at phase transitions and milestone boundaries.
 - JSON output format
 
 ---
-*Last updated: 2026-03-29 — v2.0 milestone started, 152 passing tests from v1*
+*Last updated: 2026-03-29 — Phase 6 complete, 189 passing tests*
