@@ -1,8 +1,23 @@
 # Feature Research
 
 **Domain:** macOS meeting transcription tool (Swedish/Scandinavian language focus)
-**Researched:** 2026-03-27
-**Confidence:** HIGH (stack decisions verified; feature landscape drawn from competitor analysis and domain research)
+**Researched:** 2026-03-28 (updated for v2.0 Integration & Polish milestone)
+**Confidence:** HIGH for core v1 features; MEDIUM for notebooklm-py (unofficial API); HIGH for OAuth2 and audio-switching patterns
+
+---
+
+## Context: What Is Already Built (v1 Complete)
+
+These features are implemented and passing tests — they are not in scope for v2 but inform dependencies:
+
+- CLI record/transcribe flow (`mote record`, auto-transcribes after stop)
+- KB-Whisper local engine + OpenAI Whisper API engine
+- Markdown and plain text output with YAML frontmatter headers
+- Model management (`mote models list/download/delete`)
+- TOML config at `~/.mote/config.toml`
+- `mote list` for past transcripts
+- Orphan WAV detection (detection exists; retry UX is incomplete)
+- `mote status` (PID file check)
 
 ---
 
@@ -14,17 +29,13 @@ Features users assume exist. Missing these = product feels incomplete.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Audio capture from virtual meetings | Core job-to-be-done — without this, nothing else matters | MEDIUM | BlackHole 2ch virtual audio device is the macOS-standard approach; requires user to configure Multi-Output Device in Audio MIDI Setup or equivalent |
-| Start / stop recording controls | Every recorder has this; absence feels broken | LOW | CLI `record start` / `record stop`; must persist state across invocations (PID file or socket) |
-| Transcription after recording stops | Batch transcription post-meeting is the expected flow for local tools | MEDIUM | faster-whisper processes WAV file; progress reporting via stdout/SSE |
-| Output as plain text | Simplest consumable transcript format | LOW | Required for NotebookLM and copy-paste workflows |
-| Output as Markdown | Developer-first format; pairs well with Drive/Notion | LOW | Heading + body structure, timestamps optional |
-| Output as JSON | Machine-readable; downstream tooling, search indexing | LOW | Segment array with start/end/text fields; standard from Whisper |
-| Model selection | Users need to trade accuracy vs. speed vs. disk space | LOW | tiny/base/small/medium/large; model flag on CLI or config key |
-| Configuration file | Persistent settings without re-specifying flags each run | LOW | TOML at `~/.config/mote/config.toml`; sensible defaults |
-| Real-time audio level monitor | Confirms audio is being captured before committing to a recording | LOW | RMS amplitude meter; essential for debugging BlackHole routing |
-| Transcription progress feedback | Long recordings (60+ min) take minutes to process; silence = user frustration | LOW | Segment count or percentage via stdout / SSE stream |
-| Temp file cleanup | Users don't expect WAV files accumulating; storage hygiene | LOW | Delete source WAV after successful transcription unless `--keep-audio` |
+| `mote transcribe <file>` command | Power users always want to re-transcribe old recordings or process external WAV files; absence requires workarounds | LOW | Reuses existing `transcribe_file()` + `write_transcript()`. Only needs a new CLI command that reads a WAV path. Config-driven engine/language/model. |
+| Retry failed transcription | On failure the WAV is already kept — users expect a one-step retry, not manual subprocess commands | LOW | The WAV retention on failure is already coded. Add: interactive prompt "Retry? [Y/n]" in the failure handler. Re-run same transcription call. |
+| Orphaned WAV transcription offer | Recording crashes leave WAVs behind; users want to salvage them, not hunt for file paths | LOW | `find_orphan_recordings()` already exists. On `mote record` startup, if orphans found, offer "Transcribe now? [Y/n]" per orphan. |
+| Config validation on startup | Users misconfigure engine names, models, paths; silent failure mid-transcription is worse than early error | LOW | Validate: engine is "local" or "openai"; if local, model alias valid; if openai, API key not empty; output dir writable. Raise `ClickException` before recording starts. |
+| JSON output format | Machine-readable format for downstream tooling, programmatic analysis, and NotebookLM source uploads | LOW | Add `json` to output format list. Schema: `{date, duration, words, engine, language, model, transcript}`. Mirrors existing MD frontmatter fields. |
+| Google Drive upload on transcription complete | Completing the workflow loop: capture → transcribe → Drive → NotebookLM; without this the user still has to manually copy files | MEDIUM | `google-api-python-client` + `google-auth-oauthlib`. One-time OAuth2 consent via `mote auth google`. Token persisted at `~/.mote/google_token.json`. Upload via `files().create()` with `MediaFileUpload`. |
+| Auth command (`mote auth google`) | Drive integration is useless without a discoverable one-time setup command | LOW | `InstalledAppFlow.from_client_secrets_file(...).run_local_server(port=0)`. Save credentials to `~/.mote/google_token.json`. Clear confirmation message. |
 
 ### Differentiators (Competitive Advantage)
 
@@ -32,15 +43,10 @@ Features that set the product apart. Not required, but valued.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| KBLab Swedish-optimized models | 47% lower WER vs. OpenAI whisper-large-v3 on Swedish — the core reason this tool exists | MEDIUM | KB-Whisper tiny/base/small/medium/large available as CTranslate2 (faster-whisper compatible); must download from HuggingFace explicitly |
-| Multi-engine transcription (local + cloud) | Fallback to cloud when local GPU is absent or user wants higher quality; cost-vs-privacy tradeoff | MEDIUM | Engine selector: `local` (faster-whisper + KB-Whisper), `openai` (Whisper API), `mistral` (Voxtral — note: Swedish support unconfirmed, treat as LOW confidence until verified) |
-| Model management UI | Downloading a 1.5 GB model is opaque without progress; users abandon setup | MEDIUM | Web UI page: list installed models, disk usage, download with progress bar (SSE stream), delete |
-| Google Drive auto-push | Removes the "where did I save that?" problem; feeds NotebookLM workflow without manual steps | MEDIUM | OAuth 2.0 flow on first use; token stored in config dir; upload to configurable folder; return Drive URL |
-| Web dashboard | Visual alternative to CLI; lowers barrier for non-developer colleagues who may adopt the tool | HIGH | Flask + SSE; recording controls, live audio meter, job history, settings page; binds to 127.0.0.1 only |
-| Chrome extension | One-click start/stop without switching windows; reduces friction during meetings where multitasking | HIGH | Manifest V3; communicates with local Flask server via `localhost` fetch; shows recording status in toolbar icon |
-| Scandinavian language auto-detect | Norwegian/Danish/Finnish are close to Swedish; a single-language model makes multi-national meetings awkward | LOW | KB-Whisper is Swedish-only; multi-language requires OpenAI Whisper or Voxtral (pending language verification); this is a future differentiator |
-| Structured transcript output (Subtitle/Strict modes) | KB-Whisper offers Subtitle and Strict checkpoint variants for different formatting styles | LOW | Pass `transcription_style` config option to faster-whisper; useful for subtitle generation |
-| Transcript search history | Find what was said in a past meeting without re-opening files | MEDIUM | SQLite index of all transcripts; full-text search via web UI; deferred to v2 |
+| Auto-switch BlackHole audio routing | Eliminates the #1 setup friction: manually switching System Audio Output to BlackHole before each meeting and back after | MEDIUM | Requires `brew install switchaudio-osx`. Use `subprocess.run(["SwitchAudioSource", "-t", "output", "-s", "BlackHole 2ch"])` before recording; restore original device after. Must handle: device not found, SwitchAudioSource not installed (graceful degradation). |
+| Silence detection warning | Catches misconfigured audio routing before the entire meeting is recorded as silence | LOW | RMS check in the existing sounddevice callback. If `np.sqrt(np.mean(indata**2)) < threshold` for N consecutive seconds, print a warning. Threshold ~-50 dBFS. Does not stop recording — warns only. |
+| NotebookLM upload (`mote auth notebooklm`) | Completes the Drive → NotebookLM workflow step programmatically; no manual "Add Source" in the NotebookLM web UI | HIGH | Uses `notebooklm-py` (unofficial API). Requires Playwright for browser auth (`pip install "notebooklm-py[browser]"`). Fragile — undocumented Google internal APIs. Treat as best-effort. Gate behind explicit flag or config opt-in. |
+| Configurable destinations | Users want control over where transcripts land: local only, Drive only, both, or NotebookLM | LOW | Config `[destinations]` section with boolean flags: `google_drive = true`, `notebooklm = false`. Override via `--destination drive,notebooklm` flag on `mote record`. |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
@@ -48,97 +54,257 @@ Features that seem good but create problems.
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Real-time live transcription (streaming during recording) | "I want to read along as it transcribes" | Doubles complexity: audio streaming pipeline + partial-result UI; conflicts with batch model loading; faster-whisper is optimized for complete audio segments, not live chunks. Creates false expectation of correctness mid-meeting | Batch-after-stop with fast turnaround (small/medium model on Apple Silicon processes 60 min in ~3–5 min). Show audio levels live instead |
-| Speaker diarization (who said what) | Valuable for multi-participant meetings | pyannote.audio requires HuggingFace gated model access (manual token), adds 2–4x processing time, and has poor accuracy on Swedish. Adds a complex dependency with separate licensing | Out of scope for v1; revisit after core pipeline is stable. JSON output preserves segment timestamps for manual annotation |
-| Multi-user / auth for web UI | "What if someone else on my network accesses it?" | Binds to 127.0.0.1; auth adds OAuth/session complexity for zero real threat. This is a personal tool | Document that UI is localhost-only; users needing multi-user access should use a different product |
-| Auto-start recording when meeting detected | "Start automatically when I join a Zoom call" | Requires process monitoring or OS-level hooks; fragile across app versions; raises consent/privacy concerns | Provide a keyboard shortcut via Chrome extension or CLI alias for fast manual start |
-| Auto-download models on first run | "It should just work" | Large model files (75 MB – 3 GB) downloaded without consent create bad UX (silent hang, unexpected bandwidth). Breaks air-gapped setups | Explicit `mote models download <name>` command with size shown beforehand; web UI model page with download button |
-| Video recording / screen capture | "Record the screen too" | Increases file sizes 50–100x; irrelevant for transcription; opens legal complexity around recording other participants' cameras | Audio-only; transcript is the artifact, not the video |
-| Cloud-hosted SaaS version | "Make it accessible from anywhere" | Fundamentally changes the security model (audio leaves the machine); requires auth, storage, billing, compliance — a different product entirely | Keep it local; Google Drive integration provides remote access to transcripts |
-| Notification/bot joining the meeting | "Have a bot join so I don't have to configure audio" | Bots appear in participant lists, requiring host consent; introduces a cloud dependency; defeats the privacy advantage | BlackHole captures system audio invisibly, no meeting participant is added |
+| Real-time live transcription (streaming during recording) | "I want to read along as it transcribes" | faster-whisper is optimized for complete audio segments; streaming adds pipeline complexity; partial results mislead users mid-meeting | Batch-after-stop with fast turnaround (medium model on Apple Silicon processes 60 min in ~3–5 min). Show audio levels live instead. |
+| Speaker diarization | Valuable for multi-participant meetings | pyannote.audio requires HuggingFace gated model access, adds 2–4x processing time, poor accuracy on Swedish | Out of scope for v2. JSON output with timestamps allows manual annotation. |
+| Auto-start on meeting detection | "Start automatically when I join a Zoom call" | Requires process monitoring, OS-level hooks, fragile across app versions, privacy consent concerns | Chrome extension one-click start; CLI alias `alias mr='mote record'` |
+| Auto-download models | "It should just work" | Multi-GB files downloaded without consent; breaks air-gapped setups; silent hang = bad UX | Explicit `mote models download <name>` with size shown first |
+| Aggressive auto-routing (always-on BlackHole) | "Just always route to BlackHole" | Audio stops reaching speakers; user hears nothing during meetings; requires Multi-Output Device setup (manual step in Audio MIDI Setup) | Only switch output at `mote record` start, restore immediately on stop |
+| notebooklm-py as primary integration | "Automate NotebookLM completely" | Uses undocumented internal Google APIs — no stability guarantee; Playwright browser dep adds 100+ MB; auth breaks when Google changes cookie structure | Google Drive push is the stable primary path; NotebookLM then picks up files from Drive. notebooklm-py is an optional enhancement. |
+
+---
+
+## Feature Behavior Patterns (v2 Research)
+
+### OAuth2 Installed-App Flow for Google Drive
+
+**Pattern (HIGH confidence — official docs):**
+1. Developer creates OAuth2 credentials in Google Cloud Console, downloads `client_secret.json`
+2. Ship `client_secret.json` inside the package (or prompt user to provide path)
+3. On `mote auth google`: call `InstalledAppFlow.from_client_secrets_file(secrets_path, scopes=["https://www.googleapis.com/auth/drive.file"]).run_local_server(port=0)`
+4. `run_local_server(port=0)` opens default browser, catches the redirect on a random local port, returns `credentials`
+5. Serialize credentials to `~/.mote/google_token.json` via `credentials.to_json()`
+6. On subsequent runs: load from token file; if expired, `credentials.refresh(Request())` handles it automatically
+7. Upload: `service.files().create(body={"name": filename, "parents": [folder_id]}, media_body=MediaFileUpload(path, resumable=False)).execute()`
+
+**Scope note:** `drive.file` scope is least-privileged — only access files the app created. Sufficient for upload use case.
+
+**Token refresh:** `google-auth` handles access token refresh automatically using the stored refresh token. No user re-authentication needed until refresh token expires (typically 7 days for test apps; indefinite for published apps).
+
+**Credential distribution problem:** Bundling `client_secret.json` in a public GitHub repo exposes the OAuth client ID/secret. Standard approach for personal/open-source tools: document that users must create their own Google Cloud project and download their own `client_secret.json`. Store at `~/.mote/client_secret.json`.
+
+### notebooklm-py Upload Workflow
+
+**Pattern (MEDIUM confidence — unofficial, may break):**
+1. `pip install "notebooklm-py[browser]"` installs Playwright dependency
+2. `mote auth notebooklm` runs `notebooklm login` — opens browser to Google OAuth
+3. Credentials cached in `~/.notebooklm/` (library-managed)
+4. Upload: `notebooklm source add /path/to/transcript.md --notebook "Meeting Notes"` (CLI) or Python API call
+5. Supports local files: MD, TXT, PDF, DOCX
+
+**Stability risk:** Library uses undocumented internal Google APIs. Auth flow broke after a Google update in late 2024 and required a patch release. Treat as best-effort. Gate behind `--destination notebooklm` flag, not default behavior.
+
+**Recommended pattern:** Make Google Drive the reliable primary path. NotebookLM can be connected to a Drive folder natively in the NotebookLM UI (Google Drive source type). This makes the Drive upload sufficient for the full workflow without notebooklm-py.
+
+### `mote transcribe <file>` CLI Pattern
+
+**Pattern (LOW complexity — reuses existing code):**
+- New `@cli.command("transcribe")` with `@click.argument("file", type=click.Path(exists=True, path_type=Path))`
+- Validate extension (`.wav` required; `faster-whisper` accepts WAV; OpenAI API accepts WAV/MP3/M4A)
+- Call existing `get_wav_duration()` + `transcribe_file()` + `write_transcript()` — identical to the post-recording flow
+- Engine/language/model/name resolved from config + CLI flags (same as `record` command)
+- No WAV cleanup — the input file was provided by the user; do not delete it
+- If `--destination` flag present, trigger Drive/NotebookLM upload same as `record` post-transcription
+
+**Expected UX:** `mote transcribe meeting.wav --name "q1-planning"` — prints progress, writes outputs, prints summary line.
+
+### Retry / Orphan Detection UX
+
+**Current state:** WAV is kept on transcription failure with message "WAV kept at: {path}". Orphan detection runs on `mote record` startup and prints a warning list.
+
+**v2 expected behavior:**
+
+*Retry on failure:*
+```
+Transcription failed: [error]
+WAV kept at: ~/.mote/recordings/2026-03-28_1400.wav
+Retry? [Y/n]: Y
+```
+Re-run `transcribe_file()` with same parameters. On second failure, keep WAV, exit.
+
+*Orphan offer on startup:*
+```
+Found 2 orphaned recording(s):
+  2026-03-27_0900.wav (45.2 MB, ~24 min)
+  2026-03-26_1430.wav (12.8 MB, ~7 min)
+Transcribe them now? [Y/n/skip]:
+  Y = transcribe all orphans (sequentially, same config)
+  n = skip all, leave on disk
+  skip = skip and add to ignore list
+```
+
+**Complexity:** LOW — the detection logic is done. Only the interactive prompt and transcription loop are new.
+
+### Auto-Switch BlackHole Audio Routing
+
+**Mechanism:** `switchaudio-osx` (`brew install switchaudio-osx`) provides `SwitchAudioSource` binary.
+
+```
+SwitchAudioSource -t output -c          # get current device name
+SwitchAudioSource -t output -s "BlackHole 2ch"   # switch to BlackHole
+SwitchAudioSource -t output -s "MacBook Pro Speakers"  # restore
+```
+
+**Python pattern:**
+```python
+import subprocess, shutil
+
+def get_current_output() -> str | None:
+    exe = shutil.which("SwitchAudioSource")
+    if exe is None:
+        return None
+    result = subprocess.run([exe, "-t", "output", "-c"], capture_output=True, text=True)
+    return result.stdout.strip() or None
+
+def set_output(device_name: str) -> bool:
+    exe = shutil.which("SwitchAudioSource")
+    if exe is None:
+        return False
+    result = subprocess.run([exe, "-t", "output", "-s", device_name])
+    return result.returncode == 0
+```
+
+**Graceful degradation:** If `SwitchAudioSource` is not installed, skip silently and print a one-time hint: "Install `brew install switchaudio-osx` to enable auto-routing." Do not fail.
+
+**Config flag:** `auto_routing = true` in `[audio]` config section. Default: `false` until user opts in (avoids surprising speaker-output changes).
+
+**Restore on Ctrl+C:** Must use try/finally to restore the original device even on KeyboardInterrupt. If restore fails (device disconnected), warn but do not error.
+
+### RMS-Based Silence Detection
+
+**Mechanism:** The existing `record_session()` uses a sounddevice InputStream callback that already receives `indata` (NumPy array). Add a rolling window RMS check in the callback.
+
+```python
+rms = float(np.sqrt(np.mean(indata ** 2)))
+# Track if RMS stays below threshold for > N seconds
+```
+
+**Threshold:** `-50 dBFS` = `10 ** (-50/20)` ≈ `0.00316` in linear scale. This catches genuine silence (no audio from BlackHole) while tolerating low-level room noise.
+
+**Warning behavior:**
+- If silence persists for 30 seconds, print once: `"Warning: no audio detected — check BlackHole routing in System Settings > Sound > Output"`
+- Print again every 60 seconds if still silent
+- Do NOT stop recording — user may have a silent stretch legitimately
+
+**Complexity:** LOW — the callback is already in place. Add a running counter and last-warned timestamp.
+
+### Config Validation Pattern
+
+**When:** At the start of `mote record` and `mote transcribe`, before any recording or file I/O.
+
+**What to validate:**
+| Config key | Rule | Error message |
+|------------|------|---------------|
+| `transcription.engine` | Must be "local" or "openai" | "Unknown engine '{value}'. Valid: local, openai" |
+| `transcription.model` | If engine=local, model alias must be in MODELS dict | "Unknown model '{value}'. Run 'mote models list' to see valid names" |
+| `transcription.model` | If engine=local, model must be downloaded | "Model '{name}' is not downloaded. Run 'mote models download {name}'" |
+| `api_keys.openai` | If engine=openai, must be non-empty | "OpenAI API key not set. Run 'mote config set api_keys.openai YOUR_KEY'" |
+| `output.dir` | Parent directory must be creatable | "Output directory '{path}' is not writable" |
+| `transcription.language` | Must be in ["sv","no","da","fi","en"] | "Unknown language '{value}'. Valid: sv, no, da, fi, en" |
+
+**Pattern:** Raise `click.ClickException` with a human-readable message. Exit before recording starts — never fail silently mid-recording.
+
+### JSON Output Format
+
+**Schema (mirrors existing MD frontmatter):**
+```json
+{
+  "date": "2026-03-28T14:00:00.000000",
+  "duration": 1440,
+  "words": 5230,
+  "engine": "local",
+  "language": "sv",
+  "model": "kb-whisper-medium",
+  "transcript": "Full transcript text here..."
+}
+```
+
+**Filename:** Same pattern as MD/TXT — `YYYY-MM-DD_HHMM[_name].json`
+
+**Complexity:** LOW — `write_transcript()` already takes a `formats` list. Add `if "json" in formats:` branch using `json.dumps(...)` with `ensure_ascii=False` for Swedish characters.
+
+**Config:** `format = ["markdown", "txt", "json"]` in `[output]` section. Default remains `["markdown", "txt"]` — JSON is opt-in.
 
 ---
 
 ## Feature Dependencies
 
 ```
-[BlackHole audio capture]
-    └──required by──> [Recording (start/stop)]
-                          └──required by──> [WAV file on disk]
-                                                └──required by──> [Transcription engine]
-                                                                       └──required by──> [Output files (MD/TXT/JSON)]
-                                                                                              └──enhanced by──> [Google Drive push]
+[mote transcribe <file>]
+    └──reuses──> [transcribe_file(), write_transcript()] (already built)
+    └──enhanced by──> [Drive upload] (same post-transcription hook as record)
 
-[KB-Whisper model downloaded]
-    └──required by──> [Local transcription engine]
+[Drive upload]
+    └──requires──> [mote auth google] (OAuth token must exist)
+    └──requires──> [google-api-python-client, google-auth-oauthlib] (new deps)
 
-[Flask web server]
-    └──required by──> [Web dashboard]
-    └──required by──> [Chrome extension API]
-    └──required by──> [SSE progress stream]
+[mote auth google]
+    └──requires──> [~/.mote/client_secret.json] (user must provide from GCP console)
 
-[SSE progress stream]
-    └──enhances──> [Web dashboard live status]
-    └──enhances──> [Model download progress UI]
+[NotebookLM upload]
+    └──requires──> [mote auth notebooklm] (Playwright browser login)
+    └──requires──> [notebooklm-py[browser]] (new dep with Playwright)
+    └──enhanced by──> [Drive upload] (recommended path: Drive → NotebookLM native source)
 
-[OAuth token (Google)]
-    └──required by──> [Google Drive push]
+[Auto-routing]
+    └──requires──> [switchaudio-osx] (brew dep, not pip-installable)
+    └──enhanced by──> [silence detection] (if routing failed, silence detection catches it)
 
-[Model management (download/delete/list)]
-    └──required by──> [Local transcription engine]  (model must exist before transcription)
-    └──enhanced by──> [Web UI model management page]
+[Silence detection]
+    └──depends on──> [sounddevice callback] (already in record_session())
+    └──no new deps]
 
-[Chrome extension]
-    └──requires──> [Flask web server running]
-    └──conflicts──> [Transcription running] (extension should disable start button while transcribing)
+[Config validation]
+    └──depends on──> [load_config()] (already built)
+    └──depends on──> [MODELS dict, is_model_downloaded()] (already built)
+    └──no new deps]
+
+[JSON output]
+    └──depends on──> [write_transcript()] (already built)
+    └──no new deps]
+
+[Retry / orphan UX]
+    └──depends on──> [find_orphan_recordings()] (already built)
+    └──depends on──> [transcribe_file()] (already built)
+    └──no new deps]
 ```
 
 ### Dependency Notes
 
-- **BlackHole required before recording:** Users must install `blackhole-2ch` via Homebrew and configure system audio routing before the tool is functional. This is the #1 setup friction point; must be documented clearly.
-- **Model must exist before local transcription:** `mote transcribe` must check model presence and give a clear error pointing to `mote models download`. Silent failure here will confuse users.
-- **Flask server required for Chrome extension:** The extension communicates with `http://localhost:PORT` — the server must already be running. Extension should detect server-down state and show an error rather than silently failing.
-- **Google OAuth token required before Drive push:** The OAuth flow must complete once (browser-based) before Drive integration works. Token should be persisted between sessions in config dir.
-- **SSE requires Flask threaded mode:** Default Flask dev server is single-threaded; SSE will block. Flask must run with `threaded=True` (default in Flask 2+) or via a production-grade server like Waitress.
+- **Drive upload requires user-created GCP credentials.** Cannot ship `client_secret.json` in a public repo. Users must create a Google Cloud project, enable Drive API, create an OAuth2 Desktop App credential, and download `client_secret.json` to `~/.mote/`. This is setup friction — document clearly in README.
+- **notebooklm-py is a Playwright dependency.** Playwright downloads browser binaries (~100 MB). This must be a soft/optional dependency — do not add `notebooklm-py` to mandatory `dependencies` in pyproject.toml. Use an extras group: `[project.optional-dependencies] notebooklm = ["notebooklm-py[browser]"]`.
+- **switchaudio-osx is a brew dep, not pip-installable.** Auto-routing must degrade gracefully when the binary is absent. Never make recording fail because SwitchAudioSource is missing.
+- **Config validation runs before recording starts.** It must be fast (no network calls, no model loading). Purely in-memory checks against already-loaded config values.
+- **JSON output has no new deps.** `json` is stdlib. Zero install friction.
 
 ---
 
 ## MVP Definition
 
-### Launch With (v1)
+### v2.0 Launch With
 
-Minimum viable product — what's needed to validate the concept.
+Minimum feature set for the v2.0 Integration & Polish milestone.
 
-- [ ] BlackHole system audio capture — core pipeline; nothing works without it
-- [ ] CLI start/stop recording — minimal control surface
-- [ ] Local transcription via faster-whisper + KB-Whisper models — the core differentiator
-- [ ] OpenAI Whisper API as cloud fallback engine — for machines without GPU or when KB-Whisper not downloaded
-- [ ] Output as Markdown and plain text — primary consumption formats
-- [ ] TOML configuration — sensible defaults, no required flags
-- [ ] Model management CLI (download/list/delete) — required before local engine is usable
-- [ ] Real-time audio level monitoring — confirms routing before meeting starts
-- [ ] Transcription progress reporting (CLI) — user feedback during processing
-- [ ] Google Drive push — completes the workflow from capture to NotebookLM
+- [ ] `mote transcribe <file>` — core usability feature; reuses all existing logic; zero risk
+- [ ] Retry failed transcription — low effort, closes a known UX gap
+- [ ] Orphaned WAV offer on startup — low effort, pairs with existing detection
+- [ ] Config validation on startup — prevents confusing mid-run failures
+- [ ] JSON output format — zero new deps; enables downstream automation
+- [ ] Google Drive upload + `mote auth google` — primary integration value
+- [ ] Configurable destinations config section — needed for Drive + future NotebookLM
+- [ ] Silence detection warning — low effort, high value for debugging routing issues
+- [ ] Auto-switch BlackHole routing — biggest UX win; requires brew dep, must degrade gracefully
 
-### Add After Validation (v1.x)
+### Defer to v2.1 or v3
 
-Features to add once core is working.
+- [ ] NotebookLM upload via notebooklm-py — fragile unofficial API; Playwright dep; recommend Drive-as-intermediary pattern instead. Add only if user explicitly requests it.
 
-- [ ] Web dashboard (Flask + SSE) — when CLI proves friction for regular use
-- [ ] Chrome extension — when dashboard proves useful and one-click start is wanted
-- [ ] Web UI model management with download progress — when web dashboard exists
-- [ ] Mistral Voxtral engine — after verifying Swedish WER vs. KB-Whisper; add if competitive
-- [ ] JSON output format — when downstream tooling (search, analysis) becomes a need
+### Future Consideration (v3+)
 
-### Future Consideration (v2+)
-
-Features to defer until product-market fit is established.
-
-- [ ] Norwegian, Danish, Finnish language support — requires multi-language model strategy; KB-Whisper is Swedish-only
-- [ ] Speaker diarization — high complexity, poor Swedish accuracy; defer until pyannote improves
-- [ ] In-person recording via microphone — different audio routing path; deferred per PROJECT.md
-- [ ] Transcript search history (SQLite FTS) — only valuable once transcript archive grows
-- [ ] Subtitle/Strict transcription style variants — niche need; low-effort addition but low priority
+- [ ] Web dashboard (Flask + SSE) — substantial work; deferred per PROJECT.md
+- [ ] Chrome extension — requires Flask server first
+- [ ] Speaker diarization — poor Swedish accuracy; deferred
+- [ ] Norwegian/Danish/Finnish KB-Whisper models — KB-Whisper is Swedish-only; needs different model strategy
+- [ ] Transcript search history (SQLite FTS) — valuable only once archive grows large
 
 ---
 
@@ -146,104 +312,56 @@ Features to defer until product-market fit is established.
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| BlackHole audio capture | HIGH | MEDIUM | P1 |
-| CLI start/stop recording | HIGH | LOW | P1 |
-| Local transcription (KB-Whisper) | HIGH | MEDIUM | P1 |
-| Output formats (MD/TXT) | HIGH | LOW | P1 |
-| TOML configuration | HIGH | LOW | P1 |
-| Model management CLI | HIGH | LOW | P1 |
-| Audio level monitoring | HIGH | LOW | P1 |
-| Google Drive push | HIGH | MEDIUM | P1 |
-| OpenAI Whisper API fallback | MEDIUM | LOW | P1 |
-| Progress reporting | MEDIUM | LOW | P1 |
-| Output format JSON | MEDIUM | LOW | P2 |
-| Web dashboard | MEDIUM | HIGH | P2 |
-| Chrome extension | MEDIUM | HIGH | P2 |
-| Mistral Voxtral engine | MEDIUM | LOW | P2 |
-| Web UI model management | MEDIUM | MEDIUM | P2 |
-| Norwegian/Danish/Finnish | LOW | HIGH | P3 |
-| Speaker diarization | LOW | HIGH | P3 |
-| In-person microphone capture | LOW | MEDIUM | P3 |
-| Transcript search history | LOW | MEDIUM | P3 |
+| `mote transcribe <file>` | HIGH | LOW | P1 |
+| Config validation | HIGH | LOW | P1 |
+| Silence detection warning | HIGH | LOW | P1 |
+| Retry / orphan UX | MEDIUM | LOW | P1 |
+| JSON output format | MEDIUM | LOW | P1 |
+| Google Drive upload | HIGH | MEDIUM | P1 |
+| `mote auth google` | HIGH | LOW | P1 |
+| Configurable destinations | MEDIUM | LOW | P1 |
+| Auto-switch BlackHole routing | HIGH | MEDIUM | P2 |
+| NotebookLM upload | MEDIUM | HIGH | P3 |
 
 **Priority key:**
-- P1: Must have for launch
-- P2: Should have, add when core is stable
-- P3: Nice to have, future consideration
+- P1: Must have for v2.0
+- P2: Should have, fits v2.0 if time allows
+- P3: Defer — fragility or complexity outweighs value for this milestone
 
 ---
 
 ## Competitor Feature Analysis
 
-| Feature | Otter.ai / Fireflies | Jamie (bot-free, local) | trnscrb (local macOS) | Möte (this project) |
-|---------|----------------------|-------------------------|-----------------------|---------------------|
-| Swedish language | Poor (English-primary) | 28+ languages (auto-detect) | OpenAI Whisper (generic) | KB-Whisper: 47% lower WER for Swedish |
-| Audio capture | Meeting bot joins call | System audio (BlackHole-like) | System audio via BlackHole | BlackHole 2ch |
-| Privacy | Cloud upload, GDPR risk | Local-first, GDPR compliant | Local, no cloud | Local + explicit cloud opt-in |
-| Output formats | PDF, DOCX, TXT, MP3 | Markdown, PDF | TXT | Markdown, TXT, JSON |
-| CLI interface | None | None | None | Full Click CLI |
-| Web dashboard | Full SaaS UI | Desktop app | Menu bar only | Localhost Flask dashboard |
-| Chrome extension | No | No | No | Yes (remote control) |
-| Google Drive | Integration (paid) | Export only | None | Direct API push |
-| Model selection | None (cloud only) | Hidden | Whisper sizes | KB-Whisper + OpenAI + Mistral |
-| Offline use | No | Yes | Yes | Yes (local engine) |
-| Open source / self-hosted | No | No | No | Yes (GitHub, pip install) |
-| Cost | $10–20/month | $15–25/month | Free | Free (local) / API costs only |
-
----
-
-## Swedish Language Notes
-
-This section covers the unique considerations for Swedish/Scandinavian language support.
-
-**KB-Whisper model suite (HIGH confidence):**
-- Trained on 50,000 hours of Swedish speech (TV subtitles, parliamentary recordings, dialect archives)
-- Available sizes: tiny, base, small, medium, large-v3
-- CTranslate2 format available — directly compatible with faster-whisper
-- Average 47% WER reduction vs. OpenAI whisper-large-v3 on Swedish
-- KB-Whisper-small outperforms OpenAI whisper-large (6x larger) on Swedish
-- Two style variants: Subtitle (for captions) and Strict (for verbatim)
-- Free download from HuggingFace; no license restrictions for personal use
-
-**OpenAI Whisper API (MEDIUM confidence for Swedish):**
-- OpenAI Whisper supports Swedish but is not Swedish-optimized
-- Baseline for comparison; useful as cloud fallback when local model not available
-- Cost: ~$0.006/minute; a 60-minute meeting costs ~$0.36
-
-**Mistral Voxtral (LOW confidence for Swedish):**
-- Official supported language list: 13 languages (English, Chinese, Hindi, Spanish, Arabic, French, Portuguese, Russian, German, Japanese, Korean, Italian, Dutch)
-- Swedish is NOT in the confirmed list
-- Claims 100+ language support in general model, but Swedish accuracy unverified
-- Must benchmark against KB-Whisper before using Voxtral as Swedish engine
-- Include as engine option but document the uncertainty
-
-**Norwegian, Danish, Finnish:**
-- KB-Whisper is Swedish-only; these require OpenAI Whisper or a different model
-- OpenAI Whisper supports all four; generic model, not fine-tuned for Scandinavian dialects
-- Deferred to v2 — solve Swedish first, then expand
+| Feature | Otter.ai / Fireflies | Jamie (bot-free, local) | Möte v1 (built) | Möte v2 (this milestone) |
+|---------|----------------------|-------------------------|-----------------|--------------------------|
+| Swedish language | Poor | 28+ languages (auto-detect) | KB-Whisper native | Same — no change |
+| `transcribe <file>` | No | Yes | No | Yes |
+| Retry failed job | No | Manual | Warning only | Interactive retry |
+| Google Drive auto-push | Paid integration | Export only | No | Yes (OAuth2, API) |
+| NotebookLM integration | No | No | No | Optional (notebooklm-py) |
+| JSON output | No | No | No | Yes |
+| Config validation | N/A | N/A | No | Yes (startup check) |
+| Auto audio routing | No | No | No | Yes (SwitchAudioSource) |
+| Silence detection | No | No | No | Yes (RMS warning) |
 
 ---
 
 ## Sources
 
+- [OAuth 2.0 for Installed Applications — google-api-python-client](https://googleapis.github.io/google-api-python-client/docs/oauth-installed.html)
+- [google-auth-oauthlib flow module reference](https://googleapis.dev/python/google-auth-oauthlib/latest/reference/google_auth_oauthlib.flow.html)
+- [Drive API — Media Upload documentation](https://googleapis.github.io/google-api-python-client/docs/media.html)
+- [notebooklm-py GitHub (teng-lin)](https://github.com/teng-lin/notebooklm-py)
+- [notebooklm-py on PyPI](https://pypi.org/project/notebooklm-py/)
+- [switchaudio-osx GitHub (deweller)](https://github.com/deweller/switchaudio-osx)
+- [switchaudio-osx Homebrew formula](https://formulae.brew.sh/formula/switchaudio-osx)
+- [Silence detection in sounddevice stream — GitHub issue #157](https://github.com/spatialaudio/python-sounddevice/issues/157)
+- [Click advanced patterns — custom validation](https://click.palletsprojects.com/en/stable/advanced/)
+- [JSON CLI output best practices (Kelly Brazil, 2021)](https://blog.kellybrazil.com/2021/12/03/tips-on-adding-json-output-to-your-cli-app/)
+- [Transcript file formats: TXT/SRT/VTT/JSON guide (BrassTranscripts)](https://brasstranscripts.com/blog/transcription-file-formats-decision-guide-2026)
 - [KB-Whisper announcement (KBLab, March 2025)](https://kb-labb.github.io/posts/2025-03-07-welcome-KB-Whisper/)
-- [KB-Whisper HuggingFace models](https://huggingface.co/KBLab)
-- [easytranscriber (KBLab, February 2026)](https://kb-labb.github.io/posts/2026-02-26-easytranscriber/)
-- [faster-whisper GitHub](https://github.com/SYSTRAN/faster-whisper)
-- [Voxtral Transcribe 2 announcement (Mistral AI)](https://mistral.ai/news/voxtral-transcribe-2)
-- [Voxtral original announcement (Mistral AI)](https://mistral.ai/news/voxtral)
-- [Otter.ai vs Fireflies feature comparison (Avoma, 2025)](https://www.avoma.com/blog/otter-vs-fireflies)
-- [Jamie bot-free transcription review](https://www.meetjamie.ai/blog/jamie-review)
-- [trnscrb local macOS transcription tool](https://www.toolify.ai/tool/trnscrb)
-- [Privacy risks with cloud transcription (DEV Community, 2025)](https://dev.to/sujiths/are-ai-meeting-assistants-safe-privacy-risks-with-cloud-transcription-4a23)
-- [On-device vs cloud STT tradeoffs (Talkio AI)](https://voicecontrol.chat/blog/posts/on-device-speech-to-text-vs-cloud-apis-tradeoffs-for-privacy-and-performance)
-- [Chrome extension recording with Manifest V3 (Recall.ai)](https://www.recall.ai/blog/how-to-build-a-chrome-recording-extension)
-- [Transcript output formats: TXT, SRT, VTT, JSON (BrassTranscripts)](https://brasstranscripts.com/blog/choosing-the-right-transcript-format-txt-srt-vtt-json)
-- [Whisper model sizes and disk requirements (OpenWhispr)](https://openwhispr.com/blog/whisper-model-sizes-explained)
-- [Flask SSE no-dependency implementation (Max Halford)](https://maxhalford.github.io/blog/flask-sse-no-deps/)
-- [10 Best Meeting Transcription Software 2026 (Jamie)](https://www.meetjamie.ai/blog/meeting-transcription-software)
-- [Best local meeting recorders (no cloud) 2026](https://blog.buildbetter.ai/best-local-meeting-recorders-no-cloud-2026/)
+- [Google Drive file scope — drive.file least privilege](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)
 
 ---
-*Feature research for: macOS Swedish meeting transcription tool (Möte)*
-*Researched: 2026-03-27*
+*Feature research for: macOS Swedish meeting transcription tool (Möte) — v2.0 Integration & Polish*
+*Researched: 2026-03-28*

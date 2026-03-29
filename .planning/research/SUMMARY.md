@@ -1,221 +1,196 @@
 # Project Research Summary
 
-**Project:** Möte — macOS Swedish meeting transcription tool
-**Domain:** macOS desktop audio capture and local speech-to-text, Swedish/Scandinavian focus
-**Researched:** 2026-03-27
-**Confidence:** HIGH
+**Project:** Möte — macOS Swedish Meeting Transcription Tool
+**Domain:** CLI tool for audio capture, local AI transcription, and cloud delivery
+**Researched:** 2026-03-28 (v2.0 update; v1 research 2026-03-27)
+**Confidence:** HIGH for Phases 1-3; MEDIUM for NotebookLM integration (Phase 4)
 
 ## Executive Summary
 
-Möte is a local-first macOS meeting transcription tool built around a clear and well-documented stack. The core value proposition is KBLab's KB-Whisper model suite — Swedish-optimized Whisper variants that deliver 47% lower word-error rate than OpenAI's generic whisper-large-v3. The recommended architecture pairs faster-whisper (CTranslate2 backend) with BlackHole virtual audio capture, a Click CLI as the primary interface, and an optional Flask web dashboard with Server-Sent Events for live status. The full stack is verifiable, current as of March 2026, and the build order is unambiguous: foundation services first (config, file store, event bus), then audio capture, then transcription engines, then output and Drive integration, then web UI and Chrome extension.
+Möte is a macOS-only meeting transcription tool built around BlackHole virtual audio capture and KBLab's kb-whisper models — the only production-quality Swedish transcription models available, delivering 47% lower word error rate than the generic whisper-large-v3 baseline. The tool is now in its v2.0 Integration and Polish phase: v1 is complete with a working record-transcribe CLI pipeline, and v2.0 adds Google Drive delivery, auto audio routing, UX polish (retry flows, config validation), and optional NotebookLM upload. The architecture centers on a thin CLI layer over four stable modules (audio, transcribe, output, config), with a new `destinations/` subpackage for external delivery added in v2.
 
-The product falls into a well-understood category — local audio recorder and batch transcriber — but with two sources of real technical complexity. First, BlackHole audio routing is fragile: macOS provides no API to automate system output switching, and the Multi-Output device configuration on Apple Silicon has a documented clock-drift bug that degrades audio after 20–30 minutes. Second, the Chrome native messaging integration has several silent-failure modes (stdout byte corruption, absolute path requirements, extension ID mismatches) that are easy to introduce and hard to diagnose. Both risk areas are fully documented with prevention strategies and must be addressed in the first working iteration of each feature, not as retrofits.
+The recommended approach is sequential batch transcription — record to WAV, stop, transcribe — rather than streaming. This matches faster-whisper's design, avoids Python GIL contention, and produces clean output. The core pipeline is already built and proven. v2.0 changes are additive: new CLI commands, a new module, and extensions to existing modules. The build order matters: config validation and a `_run_transcription()` helper refactor must ship before destinations are wired, so both `record` and the new `transcribe` command share the delivery path without code duplication.
 
-The MVP is tightly scoped: CLI recording, local KB-Whisper transcription, Markdown/text output, model management, audio level monitoring, and Google Drive push. The web dashboard and Chrome extension are deliberate v1.x additions after the CLI proves the pipeline. Speaker diarization, real-time streaming transcription, and multi-language Scandinavian support are correctly deferred to v2+. Mistral Voxtral must not be treated as a Swedish engine — Swedish is absent from its confirmed language list.
+The key risks are not technical complexity but fragility at integration boundaries. Google Drive is stable and well-documented; its OAuth pitfalls are specific and avoidable with correct parameter choices. NotebookLM is fundamentally fragile — it wraps undocumented Google internals, sessions expire every 1-2 weeks, and Google can silently break it. The right mitigation is to make Drive the primary reliable path and NotebookLM a best-effort optional enhancement. Audio routing restore-on-crash is the other critical risk: a SIGKILL with BlackHole set as system output leaves the user with no sound; a recovery file written before the switch is the only protection.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack is Python 3.11+, faster-whisper 1.2.1, sounddevice 0.5.5, Click 8.3.0, Flask 3.1.3, and tomlkit. These are all current, pip-installable from GitHub via hatchling, and free of significant version conflicts. The only non-pip system dependency is BlackHole 2ch via Homebrew. faster-whisper loads KBLab ctranslate2-format models directly by HuggingFace repo ID — no format conversion needed.
+The stack is fully resolved. Python 3.11+ with faster-whisper 1.2.1 and KBLab/kb-whisper models handles all transcription. sounddevice captures from BlackHole with a queue-based callback (never block the callback thread). Click 8.3.0 drives the CLI, Flask 3.1.3 serves the web UI with native SSE streaming. hatchling enables `pip install git+https://github.com/...` distribution. Config uses tomlkit (not stdlib tomllib) because the settings UI writes config values.
 
-For Apple Silicon, use `device="cpu"` and `compute_type="int8"` in WhisperModel. CTranslate2's MPS (Metal) support is experimental; CPU with int8 quantization is faster and more reliable. Flask SSE requires no additional package — a plain streaming response with a `queue.Queue` backend eliminates the Redis dependency that Flask-SSE introduces. tomlkit (not the stdlib tomllib) is required because the settings UI must write config values while preserving comments.
+For v2.0, three additions: `google-api-python-client` + `google-auth-oauthlib` for Drive; `notebooklm-py` 0.3.4 for NotebookLM (unofficial API, treat as optional); `SwitchAudioSource` via `brew install switchaudio-osx` for auto audio routing (not pip-installable, must degrade gracefully). Silence detection requires no new deps — numpy RMS on existing sounddevice callback data.
 
 **Core technologies:**
-- faster-whisper 1.2.1: local transcription engine — CTranslate2 backend, 4x faster than openai/whisper, loads KBLab models natively
-- KBLab/kb-whisper-*: Swedish transcription model — 47% lower WER vs. whisper-large-v3, trained on 50K hours Swedish speech
-- sounddevice 0.5.5: BlackHole audio capture — NumPy-native API, cleaner than PyAudio, bundles PortAudio via pip
-- Click 8.3.0: CLI framework — decorator-based, composable commands, clean help generation
-- Flask 3.1.3: web UI server — built-in streaming for dependency-free SSE, Jinja2 templates, single-user localhost tool
-- tomlkit: TOML config read/write — preserves comments and formatting, required for write-through settings
-- nativemessaging-ng 1.3.3: Chrome native messaging — handles 4-byte length framing, installs browser manifest via CLI
-- google-api-python-client + google-auth-oauthlib: Google Drive integration — OAuth2 installed-app flow, token persistence
+- faster-whisper 1.2.1: local transcription — CTranslate2 backend; only engine that natively loads KBLab ctranslate2 models
+- KBLab/kb-whisper-{size}: primary Swedish model — 47% lower WER than generic whisper-large-v3; 5 sizes (tiny through large)
+- sounddevice 0.5.5: BlackHole audio capture — NumPy-native, no separate PortAudio brew dep required
+- Click 8.3.0: CLI framework — decorator-based, composable commands; Python 3.10+ required
+- Flask 3.1.3: web UI server — native SSE streaming without Redis; single-user localhost tool
+- tomlkit 0.13.x: TOML config — read and write with comment preservation (stdlib tomllib is read-only)
+- google-api-python-client 2.193.0: Drive API v3 upload with InstalledAppFlow OAuth2
+- notebooklm-py 0.3.4: NotebookLM source upload — unofficial API, best-effort only; do not make mandatory
 
-**Avoid:** Mistral Voxtral as Swedish engine (Swedish not in confirmed language list), Flask-SSE pip package (Redis dependency), oauth2client (deprecated 2019), openai-whisper original package (CPU-only, no CTranslate2), PyAudio (harder install), threading for concurrent audio + transcription.
+**Avoid:** Mistral Voxtral as Swedish engine (Swedish not in confirmed 13-language list), Flask-SSE pip package (requires Redis), oauth2client (deprecated 2019), openai-whisper original package (CPU-only, no CTranslate2), PyAudio (harder install, bytes-based API), threading for concurrent audio + transcription (GIL contention), playwright in pyproject.toml (100MB binary; only needed once for notebooklm login).
 
 ### Expected Features
 
-**Must have (table stakes):**
-- BlackHole 2ch system audio capture — without this, nothing else works
-- CLI start/stop recording (with PID/socket state persistence) — expected by any recorder
-- Local transcription via faster-whisper + KB-Whisper — the core differentiator
-- Output as Markdown and plain text — primary consumption formats
-- TOML configuration at `~/.config/mote/config.toml` — persistent settings
-- Model management CLI (download/list/delete) — model must exist before transcription
-- Real-time audio level monitoring — confirms BlackHole routing before meeting starts
-- Transcription progress reporting — silence during multi-minute processing causes abandonment
-- Temp file cleanup after successful transcription — storage hygiene expected
-- Google Drive auto-push — completes the capture-to-NotebookLM workflow
+v1 is complete. v2.0 adds integration and polish features that build on the existing pipeline without restructuring it.
 
-**Should have (competitive):**
-- OpenAI Whisper API as cloud fallback — for machines without downloaded local model
-- Web dashboard (Flask + SSE) — lowers barrier for non-developer colleagues
-- Chrome extension — one-click start/stop without window-switching during meetings
-- Model management web UI with download progress (size shown before download)
-- JSON output format — for downstream tooling and search indexing
+**Must have (table stakes) for v2.0:**
+- `mote transcribe <file>` — power users expect to re-transcribe files; reuses all existing transcription logic
+- Config validation on startup — fail fast before recording with actionable error messages; must not break existing v1 configs
+- Retry failed transcription — WAV is already kept on failure; interactive prompt completes the loop
+- Orphaned WAV offer on startup — detection already exists; only the prompt and transcription loop are new
+- JSON output format — zero new deps; enables downstream automation and NotebookLM uploads
+- Google Drive upload + `mote auth google` — primary integration value; closes the capture-to-Drive workflow
+- Configurable destinations config section — enables Drive and future destinations
+- Silence detection warning — RMS-based, ~10 lines in existing callback; catches routing misconfiguration early
 
-**Defer (v2+):**
-- Norwegian, Danish, Finnish language support — KB-Whisper is Swedish-only; requires different model strategy
-- Speaker diarization — pyannote.audio has poor Swedish accuracy and adds heavy dependencies
-- Transcript search history (SQLite FTS) — only valuable once transcript archive grows
-- Scandinavian language auto-detect — requires multi-language model
+**Should have for v2.0:**
+- Auto-switch BlackHole routing — eliminates the biggest setup friction point; must degrade gracefully when SwitchAudioSource absent
 
-**Anti-features to avoid building:**
-- Real-time streaming transcription — doubles complexity, conflicts with batch model loading, unnecessary
-- Auto-detect meeting start — fragile OS hooks, privacy concerns
-- Auto-download models on first run — silent large download, bad UX
-- Multi-user auth for web UI — overkill for localhost personal tool
-- SaaS / cloud-hosted version — different product entirely
+**Defer to v2.1 or later:**
+- NotebookLM upload via notebooklm-py — fragile unofficial API, Playwright dep; Google Drive is the reliable path; NotebookLM can source from a Drive folder natively in its web UI
+- Web dashboard (Flask + SSE) — substantial scope; future phase
+- Chrome extension — requires web UI first
+- Speaker diarization — poor Swedish accuracy; out of scope
 
 ### Architecture Approach
 
-The architecture is a three-layer system: an interface layer (CLI, Flask web server, Chrome extension), an application core (SessionManager, AudioRecorder, TranscriptionService, ModelManager, ConfigManager, EventBus), and an output layer (OutputFormatter, GoogleDriveClient, FileStore). All state flows through SessionManager, which owns the recording lifecycle state machine (`idle → recording → transcribing → done → error`). Background workers communicate status to the browser via a `queue.Queue` EventBus consumed by a Flask SSE generator — no Redis, no polling. The transcription engine is abstracted behind an `AbstractEngine` ABC, making it straightforward to add new backends without touching callers.
+v2 is evolutionary, not a redesign. The existing module structure (cli.py, audio.py, transcribe.py, output.py, config.py, models.py) is extended in four modules, and a new `destinations/` subpackage is added. The critical architectural move is extracting a `_run_transcription()` helper from `record_command` before wiring destinations, so both `record` and the new `transcribe` command share an identical post-transcription delivery path. The `destinations/` registry pattern isolates external service concerns: `output.py` writes local files and returns paths; the caller invokes `deliver(paths, cfg)` and the registry routes to enabled handlers. This keeps `output.py` a pure formatter with no knowledge of Drive or NotebookLM.
 
-The build order is strictly tier-based: ConfigManager, FileStore, and EventBus first (Tier 1), then AudioRecorder, ModelManager, OutputFormatter, and GoogleDriveClient (Tier 2), then LocalEngine/APIEngine and TranscriptionService (Tier 3), then SessionManager (Tier 4), then CLI and Flask server (Tier 5), then Chrome extension last. This order is forced by dependency relationships — do not short-circuit it.
+**Key design constraints:**
+- All paths through `get_config_dir()` — never `Path.home() / ".mote"` directly; test isolation depends on this
+- Destination errors are warnings, not failures — local files are always written first; a Drive upload failure must not appear as a transcription failure
+- Config validation distinguishes fatal (invalid value) from non-fatal (absent v2 key) — apply silent defaults for new keys
 
 **Major components:**
-1. SessionManager — single source of truth for recording state; thread-safe; shared by CLI and web server
-2. AudioRecorder — opens BlackHole via sounddevice; callback writes only to queue (never blocks); consumer thread writes WAV
-3. TranscriptionService + AbstractEngine — engine selection (local/openai/voxtral) and isolated transcription execution
-4. EventBus — `queue.Queue` shared between background threads (producers) and Flask SSE route (consumer)
-5. GoogleDriveClient — OAuth2 installed-app flow; token stored at `~/.config/mote/gdrive_token.json`; refresh before every call
-6. NativeMessagingHost — lightweight dispatcher only; calls into SessionManager; all logging redirected to stderr
+1. `cli.py` (modified) — add `transcribe_command`, `auth` command group, `_run_transcription()` helper, `--destination` flag
+2. `audio.py` (modified) — add `auto_route_audio()` wrapper, silence tracking inside existing recording loop
+3. `output.py` (modified) — add JSON format branch to `write_transcript()`; returns `list[Path]`
+4. `config.py` (modified) — add `[destinations]` TOML section, `validate_config()`, extend key whitelist
+5. `destinations/` (new) — `__init__.py` registry + `drive.py` (OAuth2, upload) + `notebooklm.py` (asyncio.run wrapper)
 
 ### Critical Pitfalls
 
-1. **BlackHole Multi-Output clock drift on Apple Silicon** — audio degrades after 20–30 minutes on M1/M2 due to a known BlackHole bug. Prevention: set BlackHole 2ch as primary/clock device in Aggregate Device config; for capture-only use, skip Multi-Output entirely and route system output directly to BlackHole.
+1. **Audio routing restore on crash** — SIGKILL cannot be caught; write `~/.mote/audio_restore.json` before switching to BlackHole; check for recovery file on every `mote record` startup; `try/finally` alone is insufficient for force-quit scenarios.
 
-2. **sounddevice callback must never block** — any blocking operation (file I/O, print, lock acquisition) inside the InputStream callback causes silent audio gaps. Prevention: callback does exactly one thing — `q.put_nowait(indata.copy())`; a separate consumer thread writes to WAV.
+2. **Google OAuth refresh token not issued** — always pass `access_type='offline'` and `prompt='consent'` to `run_local_server()`; without `prompt='consent'`, Google withholds the refresh token on repeat authorizations; use `run_local_server(port=0)` only (OOB/console flow deprecated October 2022).
 
-3. **Flask SSE blocks all requests with single-threaded server** — one open SSE connection starves all other routes. Prevention: always run with `app.run(threaded=True)` minimum; use Waitress for the deployed form; wrap SSE generator with `stream_with_context()` and `q.get(timeout=30)` to handle client disconnect.
+3. **Config validation breaks existing users** — absent v2 config keys must apply silent defaults, not raise errors; only error when a key is present but has an invalid value; test validation with a v1-format config file before shipping.
 
-4. **Chrome native messaging stdout corruption** — any byte written to stdout (print(), logging, exception tracebacks) corrupts the binary message stream. Chrome disconnects silently. Prevention: redirect all logging to stderr at process start; use `sys.stdout.buffer.write(struct.pack('<I', len(msg)) + msg.encode())` exclusively.
+4. **notebooklm-py breaks without warning** — library wraps undocumented Google internal endpoints that change without notice; wrap every call in try/except; surface as warnings; never let NotebookLM failure fail `mote record`; Drive-first is the stable delivery path.
 
-5. **Google Drive OAuth refresh token missing** — access tokens expire after 1 hour; without `access_type='offline'` and `prompt='consent'` in the auth flow, no refresh token is issued and uploads fail on the second run. Prevention: always pass both parameters; check `credentials.refresh_token is None` after loading token.json and re-authorize if missing.
+5. **sounddevice callback must never block** — callback does exactly `q.put_nowait(indata.copy())`; any I/O, print, or lock acquisition causes silent audio buffer overflow; consumer thread handles all file writing.
 
-6. **KBLab tokenizer version mismatch** — older faster-whisper releases raise `Exception: data did not match any variant of untagged enum ModelWrapper` when loading KB-Whisper models. Prevention: pin `faster-whisper>=1.0.0` and `tokenizers>=0.19.0`; add a model load smoke-test to the test suite.
+6. **BlackHole Multi-Output drift on Apple Silicon** — progressive distortion after 20-30 minutes; for capture-only use, set BlackHole 2ch as system output directly (no Multi-Output device); document in setup instructions.
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure:
+The architecture research provides an explicit build order. These phase suggestions follow it directly:
 
-### Phase 1: Foundation Services
-**Rationale:** ConfigManager, FileStore, and EventBus are imported by every other component. Building them first gives all subsequent phases a stable base. Getting their contracts right (especially EventBus event schema) prevents refactoring later.
-**Delivers:** Working config read/write (TOML), canonical path resolution for WAV and transcript files, thread-safe event queue with defined event schema.
-**Addresses:** Configuration (table stakes), sets up temp file cleanup pattern.
-**Avoids:** Pitfall 10 (WAV disk space) — FileStore establishes the disk-space-check pattern from day one; Pitfall 11 (signal handling and temp cleanup) — FileStore owns WAV lifecycle.
+### Phase 1: Config Foundation and CLI Polish
+**Rationale:** Zero-risk, no new dependencies. Establishes foundation that all subsequent phases depend on. The `_run_transcription()` helper must exist before destinations can be wired into both `record` and `transcribe` commands.
+**Delivers:** `validate_config()`, `[destinations]` TOML section with defaults, JSON output format, `mote transcribe <file>` command, retry-on-failure prompt, orphaned WAV offer on startup.
+**Addresses:** Config validation (REL-01), JSON output (INT-02), `mote transcribe` (CLI-07), retry/orphan UX (CLI-08).
+**Avoids:** Config backward-compatibility break (Pitfall 9 — silent defaults for absent keys); duplication between `record` and `transcribe` (extract `_run_transcription()` first).
+**Research flag:** None — all standard Python/Click/tomlkit patterns; fully specified in research.
 
-### Phase 2: Audio Capture
-**Rationale:** Everything depends on a reliable WAV file. Audio capture is the first integration with hardware (BlackHole) and the first place silent failure can occur. Validate this in isolation before adding transcription complexity.
-**Delivers:** CLI `mote record start/stop`, WAV written incrementally to disk, real-time audio level monitoring, device validation at recording start (refuse to record if BlackHole not detected).
-**Addresses:** BlackHole audio capture, start/stop recording, audio level monitoring (all P1 table stakes).
-**Avoids:** Pitfall 1 (BlackHole drift — document clock device setup), Pitfall 2 (silent recording — device detection at start), Pitfall 6 (callback blocking — queue-based consumer pattern from day one), Pitfall 10 (WAV size — incremental write, disk check).
-**Research flag:** None — well-documented patterns, BlackHole setup is fully researched.
+### Phase 2: Audio Improvements
+**Rationale:** Both features modify `audio.py`, share the same review, and have no new dependencies. Silence detection validates that auto-routing succeeded. Build together.
+**Delivers:** Silence detection warning during recording, auto-switch BlackHole routing with recovery file for crash protection.
+**Addresses:** Silence detection (AUD-06), auto-routing (AUD-05).
+**Avoids:** SIGKILL audio restore failure (Pitfall 2 — write recovery file before switch), SwitchAudioSource absent (Pitfall 3 — `shutil.which()` check, degrade gracefully), false-positive silence warnings (Pitfall 10 — conservative -50 dBFS threshold, 10-second window).
+**Research flag:** None — subprocess and numpy patterns fully specified in research; no ambiguity.
 
-### Phase 3: Transcription Engine
-**Rationale:** Core differentiator. Builds on WAV output from Phase 2. Establish the AbstractEngine ABC and LocalEngine before adding APIEngine so the abstraction is validated against a real implementation first.
-**Delivers:** `mote transcribe`, LocalEngine (faster-whisper + KB-Whisper), APIEngine (OpenAI Whisper), CLI progress reporting, Markdown/text output, temp WAV cleanup after successful transcription.
-**Addresses:** Local transcription (P1), OpenAI fallback (P1), output formats MD/TXT (P1), progress reporting (P1), temp file cleanup (table stakes).
-**Avoids:** Pitfall 3 (WhisperModel thread safety — lock from day one), Pitfall 4 (KBLab tokenizer — pin versions, smoke-test), anti-pattern 3 (lazy model load, cached singleton).
-**Research flag:** None — faster-whisper and KBLab patterns are fully documented with known version constraints.
+### Phase 3: Google Drive Integration
+**Rationale:** Primary integration value for v2.0. Well-documented official API. Must be built before NotebookLM so the destinations registry is proven with a stable API first. Drive is also the recommended intermediary for NotebookLM (upload to Drive; NotebookLM sources from Drive folder).
+**Delivers:** `mote auth google`, Google Drive upload destination, `destinations/drive.py`, delivery hooked into `_run_transcription()`.
+**Addresses:** Drive upload (INT-04), `mote auth google` (INT-04a).
+**Avoids:** OAuth refresh token missing (Pitfall 4 — `access_type='offline'`, `prompt='consent'`), OOB flow deprecation (Pitfall 6 — `run_local_server(port=0)` only), unverified app warning (Pitfall 5 — document with instructions), hardcoded token paths (Architecture Anti-Pattern 2 — use `get_config_dir()`).
+**Research flag:** None — InstalledAppFlow with all parameters specified; `drive.file` scope and token persistence fully documented.
 
-### Phase 4: Model Management CLI
-**Rationale:** Local transcription cannot be used without a model on disk. Model management (download with progress, list, delete) must exist before local transcription is usable in practice. Logically precedes any user-facing release.
-**Delivers:** `mote models download/list/delete`, huggingface_hub integration, progress reporting to stdout (EventBus events for later SSE reuse), disk usage display, model size shown before download.
-**Addresses:** Model management CLI (P1), prevents silent failure when model is missing.
-**Avoids:** Anti-feature "auto-download on first run" — explicit download with size shown.
-**Research flag:** None — huggingface_hub.snapshot_download pattern is standard.
+### Phase 4: NotebookLM Integration (Optional, Experimental)
+**Rationale:** Lowest confidence, highest fragility. Should follow Drive so the registry pattern is established and tested. Gate as explicit opt-in. Check library health before starting.
+**Delivers:** `mote auth notebooklm`, NotebookLM destination (experimental, marked as best-effort in CLI help text).
+**Addresses:** NotebookLM upload (INT-05).
+**Avoids:** Undocumented API breakage (Pitfall 7 — try/except all calls, warn not error), session cookie expiry (Pitfall 8 — clear re-auth message, detect 401/403 proactively), async/sync mismatch (Architecture Anti-Pattern 4 — use `asyncio.run()`).
+**Research flag:** Check notebooklm-py GitHub issues before starting; if library is broken or unmaintained, skip this phase entirely and document Drive-as-intermediary as the recommended workflow.
 
-### Phase 5: Google Drive Integration
-**Rationale:** Completes the core workflow: capture → transcribe → push to Drive for NotebookLM. This is the last P1 feature. Implement as a discrete, testable component (GoogleDriveClient) before the web UI exists, so it can be exercised from the CLI.
-**Delivers:** `mote push` / auto-upload config option, OAuth2 installed-app flow, token persistence, Drive URL returned after upload.
-**Addresses:** Google Drive auto-push (P1).
-**Avoids:** Pitfall 9 (OAuth refresh token — `access_type='offline'`, `prompt='consent'` required), security mistake (credentials.json/token.json in .gitignore, chmod 600).
-**Research flag:** Moderate — OAuth installed-app flow is documented but has several sharp edges (refresh token, client secret distribution). No additional research needed; pitfalls are fully captured.
+### Phase 5: Web UI (Future)
+**Rationale:** Substantial scope; builds on stable CLI foundation. Requires Flask SSE, threaded server, queue-based event delivery.
+**Delivers:** Browser-based recording and transcript UI with live status via SSE.
+**Avoids:** Flask single-threaded SSE block (Pitfall 14 — `threaded=True` + waitress from first SSE implementation).
+**Research flag:** Needs phase research — SSE queue design, waitress configuration, Flask threading model for concurrent CLI + web use.
 
-### Phase 6: Web Dashboard
-**Rationale:** Once the CLI validates the full pipeline (Phases 1–5), the web dashboard adds a visual interface without changing core logic. Flask routes are thin wrappers over the same SessionManager methods the CLI uses. Build SSE infrastructure here — it is reused by the model download progress in Phase 7.
-**Delivers:** Flask server (`mote serve`), dashboard (recording controls, live audio meter, job history), settings page, SSE event stream, threaded mode / Waitress configuration.
-**Addresses:** Web dashboard (P2), SSE progress stream (enhances P1 progress reporting).
-**Avoids:** Pitfall 5 (Flask single-threaded SSE — threaded=True/Waitress from first implementation), anti-pattern 1 (global variables — SessionManager owns all state), anti-pattern 2 (SSE generator teardown — `try/finally` with `GeneratorExit`).
-**Research flag:** SSE without dependencies is well-documented (Max Halford pattern). Waitress for production serve is standard. No additional research needed.
-
-### Phase 7: Chrome Extension
-**Rationale:** Extension is built last because it depends on the Flask server (Phase 6) and the NativeMessagingHost, which must be a thin dispatcher over the already-stable SessionManager. Native messaging has the highest concentration of silent-failure pitfalls — building it after the rest of the system is stable reduces debug surface.
-**Delivers:** Manifest V3 extension, popup UI (start/stop button, status badge), NativeMessagingHost (stdin/stdout dispatcher), `mote install-extension` CLI command (writes manifest with absolute path, prompts for extension ID).
-**Addresses:** Chrome extension (P2).
-**Avoids:** Pitfall 7 (stdout corruption — stderr logging, binary stdout writes only), Pitfall 8 (absolute path and extension ID — generated at install time), anti-pattern 4 (NativeMessagingHost does heavy work — calls SessionManager only).
-**Research flag:** Chrome native messaging has sparse edge-case documentation. If bidirectional message flow proves unreliable, consult Chrome extension issue tracker directly.
+### Phase 6: Chrome Extension (Future)
+**Rationale:** Depends on web UI server being operational. NativeMessagingHost is a thin dispatcher over SessionManager.
+**Delivers:** One-click recording trigger from browser during meetings.
+**Avoids:** stdout corruption in native messaging (Pitfall 16 — all logging to stderr), manifest path and extension ID mismatch (Pitfall 17 — generated at install time with absolute path).
+**Research flag:** Needs phase research — nativemessaging-ng manifest install automation, dev vs production extension ID handling, Chrome Manifest V3 native messaging constraints.
 
 ### Phase Ordering Rationale
 
-- Foundation before everything because ConfigManager and EventBus are imported everywhere — their interface must be stable before any consumer is built.
-- Audio capture before transcription because transcription requires a WAV file; testing the engine against a real captured file validates the full pipeline.
-- Transcription before model management UI because CLI model management is simpler and must exist before the web UI model page is designed.
-- Drive integration before web UI because it is a P1 feature and exercising it from the CLI first validates the OAuth flow without web UI complexity.
-- Web dashboard before Chrome extension because the extension's NativeMessagingHost calls into SessionManager, and the SessionManager is most thoroughly exercised by the web dashboard (concurrent threads, SSE events, thread-safety).
-- Chrome extension last because it has the most isolated and well-scoped interface (start/stop only) and the most fragile platform integration (native messaging) — it is safest to add when the rest of the system is stable.
+- Phase 1 before everything: `_run_transcription()` extraction is a prerequisite for destinations; config validation must be backward-compatible before it ships; JSON output proves the output extension pattern at zero risk.
+- Phase 2 before Phase 3: audio module changes are independent of Drive; combining them would increase review complexity without benefit; silence detection and routing share the same module and reviewer context.
+- Phase 3 before Phase 4: Drive is the reliable primary delivery path; NotebookLM is better as a post-Drive enhancement; registry pattern tested with a stable API before applying it to an unstable one.
+- Phases 5-6 deferred: substantially larger scope than the v2.0 integration milestone; web server adds new architectural concerns (threading, SSE, request context) that should not be mixed with the integration work.
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 5 (Google Drive):** OAuth installed-app flow for distribution to other users requires users to create their own Google Cloud project and provide their own `client_secret.json`. The UX for this setup step needs careful thought during planning.
-- **Phase 7 (Chrome Extension):** The extension ID changes between unpacked dev build and Chrome Web Store publication. If CWS publication is in scope, manifest generation and the `mote install-extension` command need to handle both IDs. Research CWS submission process at planning time.
+Needs deeper research during planning:
+- **Phase 5 (Web UI):** Flask SSE queue design for concurrent CLI + web access, waitress vs other WSGI options for local single-user deployment, thread-safe WhisperModel access pattern.
+- **Phase 6 (Chrome Extension):** Chrome Manifest V3 native messaging changes since Manifest V2, nativemessaging-ng manifest install CLI behavior, dev vs production extension ID management and CWS submission.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (Foundation):** ConfigManager with tomlkit and FileStore are standard Python patterns. No research needed.
-- **Phase 2 (Audio capture):** BlackHole + sounddevice callback pattern is fully documented with verified code examples.
-- **Phase 3 (Transcription):** faster-whisper + KBLab loading is verified; version constraints are pinned.
-- **Phase 4 (Model management):** huggingface_hub.snapshot_download with tqdm callback is documented.
-- **Phase 6 (Web dashboard):** Flask SSE without dependencies is a proven pattern with published reference implementation.
+Standard patterns (skip research-phase):
+- **Phase 1:** All standard Python/Click/tomlkit patterns; fully specified in research with code examples.
+- **Phase 2:** subprocess + numpy RMS patterns fully specified; all edge cases (SwitchAudioSource absent, SIGKILL) documented with solutions.
+- **Phase 3:** InstalledAppFlow with exact parameters specified; google-api-python-client patterns fully documented.
+- **Phase 4:** Patterns specified, but library health check before starting is mandatory.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All package versions verified against PyPI and official sources as of March 2026; KBLab model format confirmed on HuggingFace |
-| Features | HIGH | Table stakes derived from competitor analysis and domain research; MVP scope conservative and validated against project goals |
-| Architecture | HIGH | Patterns (Strategy, EventBus, SessionManager state machine) are well-established; component boundaries are unambiguous |
-| Pitfalls | HIGH | All critical pitfalls traced to primary sources (GitHub issues, official docs); prevention strategies are specific and testable |
+| Stack | HIGH | All package versions confirmed on PyPI; KBLab model format confirmed on HuggingFace; compatibility matrix validated against official sources |
+| Features | HIGH | v1 inventory from direct codebase inspection; v2 features from official API docs; NotebookLM is MEDIUM due to unofficial API |
+| Architecture | HIGH | Based on direct codebase inspection + verified library documentation; build order is explicit and dependency-ordered with code examples |
+| Pitfalls | HIGH | All critical pitfalls verified against official docs or primary issue trackers; prevention strategies are specific and testable |
 
-**Overall confidence:** HIGH
+**Overall confidence:** HIGH for Phases 1-3; MEDIUM for Phase 4 (NotebookLM)
 
 ### Gaps to Address
 
-- **Mistral Voxtral Swedish support:** Swedish is not in Voxtral's confirmed 13-language list. Include as an optional engine but benchmark WER against KB-Whisper before promoting it. This gap is low-risk — it affects only an optional engine, not the core product.
-- **Google OAuth client secret distribution:** The intended user audience (others installing from GitHub) must create their own Google Cloud project. The setup UX for this is not fully designed. Address during Phase 5 planning — document whether Möte ships its own OAuth app or requires users to bring their own credentials.
-- **Chrome Web Store publication scope:** If the extension will be published to CWS rather than only installed in developer mode, the extension ID management and CWS submission process need a dedicated planning task in Phase 7.
-- **KB-Whisper performance on Intel Mac:** Research confirms Apple Silicon int8 CPU recommendations. Intel Mac guidance (use `kb-whisper-small` for responsiveness) is reasonable but not benchmarked. Low risk given the Apple Silicon prevalence in the target audience.
+- **NotebookLM API stability:** Check notebooklm-py GitHub issues and recent commits before starting Phase 4. If the library is broken or unmaintained, skip Phase 4 and recommend Drive-as-intermediary pattern only — NotebookLM can source from a Google Drive folder natively in its web UI.
+- **GCP credential distribution:** Users must create their own Google Cloud project and provide their own `client_secret.json`. This is setup friction that could block Drive adoption. Document the setup steps clearly in README; consider whether a pre-built OAuth app is worth pursuing (requires Google verification for published apps).
+- **SwitchAudioSource on current macOS:** The tool is documented as tested through macOS 11.2 officially; verify it works on macOS 14/15 before shipping Phase 2.
+- **Default model size:** Research recommends `kb-whisper-medium` on Apple Silicon for speed/quality balance. Validate this against actual M-series performance during Phase 1 or 2 before setting it as the config default.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- https://github.com/SYSTRAN/faster-whisper/releases — faster-whisper 1.2.1 confirmed
+- https://github.com/SYSTRAN/faster-whisper/releases — faster-whisper 1.2.1 confirmed (Oct 31, 2025)
 - https://huggingface.co/KBLab/kb-whisper-large — KBLab model formats, ctranslate2 availability, 5 sizes
 - https://kb-labb.github.io/posts/2025-03-07-welcome-KB-Whisper/ — 47% WER reduction, 50K hours training data
+- https://googleapis.github.io/google-api-python-client/docs/oauth-installed.html — InstalledAppFlow pattern, drive.file scope
+- https://developers.google.com/workspace/drive/api/quickstart/python — Drive API v3 Python quickstart
 - https://pypi.org/project/sounddevice/ — sounddevice 0.5.5 (Jan 23, 2026)
+- https://pypi.org/project/click/ — Click 8.3.0 (Nov 15, 2025)
 - https://pypi.org/project/Flask/ — Flask 3.1.3 (Feb 19, 2026)
-- https://pypi.org/project/click/ — Click 8.3.0 (Nov 15, 2025), Python >=3.10 required
-- https://pypi.org/project/openai/ — openai 2.29.0 (Mar 17, 2026)
-- https://pypi.org/project/mistralai/ — mistralai 2.0.1 (Mar 12, 2026)
 - https://pypi.org/project/google-api-python-client/ — 2.193.0 (Mar 17, 2026)
-- https://github.com/roelderickx/nativemessaging-ng — nativemessaging-ng 1.3.3, actively maintained
-- https://github.com/ExistentialAudio/BlackHole/issues/274 — BlackHole drift distortion on M1/M2 confirmed
-- https://huggingface.co/KBLab/kb-whisper-large/discussions/15 — KBLab tokenizer version mismatch confirmed
-- https://github.com/SYSTRAN/faster-whisper/discussions/406 — WhisperModel concurrency not thread-safe confirmed
-- https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging — Chrome native messaging protocol
-- https://developers.google.com/identity/protocols/oauth2 — OAuth2 refresh token requirements
+- https://maxhalford.github.io/blog/flask-sse-no-deps/ — SSE without Redis pattern
+- https://docs.astral.sh/uv/concepts/build-backend/ — hatchling as build backend for pip-installable packages
+- Direct codebase inspection: src/mote/cli.py, audio.py, output.py, config.py, transcribe.py (2026-03-28)
 
 ### Secondary (MEDIUM confidence)
-- https://maxhalford.github.io/blog/flask-sse-no-deps/ — Flask SSE without Redis pattern (community reference)
-- https://mistral.ai/news/voxtral — Voxtral language list; Swedish absence noted but general multilingual claims made
-- https://kb-labb.github.io/posts/2026-02-26-easytranscriber/ — KBLab reference implementation for similar tool
-- Competitor feature analysis (Otter.ai, Jamie, trnscrb) — feature landscape and differentiation
+- https://pypi.org/project/notebooklm-py/ — notebooklm-py 0.3.4 (Mar 12, 2026); unofficial Google API wrapper
+- https://github.com/teng-lin/notebooklm-py — auth flow, cookie storage, unofficial API warning confirmed
+- https://github.com/deweller/switchaudio-osx — SwitchAudioSource CLI tool; brew install, flag usage confirmed
 
 ### Tertiary (LOW confidence)
-- Voxtral Swedish WER vs. KB-Whisper — not benchmarked; treat as unknown until tested
-- Intel Mac performance with KB-Whisper — recommendation based on architecture reasoning, not measured benchmarks
+- Mistral Voxtral Swedish support: Swedish confirmed absent from 13-language list — do not use for Swedish transcription
 
 ---
-*Research completed: 2026-03-27*
+*Research completed: 2026-03-28*
 *Ready for roadmap: yes*
