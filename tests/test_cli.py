@@ -1631,3 +1631,167 @@ def test_upload_command_help():
     result = runner.invoke(cli, ["upload", "--help"])
     assert result.exit_code == 0
     assert "--last" in result.output
+
+
+# ---------------------------------------------------------------------------
+# NotebookLM integration tests
+# ---------------------------------------------------------------------------
+
+
+def test_auth_notebooklm_new_session(mote_home):
+    """mote auth notebooklm calls run_login when no session exists (Playwright check passing)."""
+    runner = CliRunner()
+
+    mock_check_result = MagicMock()
+    mock_check_result.returncode = 0
+
+    with patch("mote.cli.shutil.which", return_value="/usr/bin/playwright"), \
+         patch("mote.cli.subprocess.run", return_value=mock_check_result), \
+         patch("mote.notebooklm.run_login") as mock_login:
+        result = runner.invoke(cli, ["auth", "notebooklm"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    mock_login.assert_called_once()
+    assert "NotebookLM session stored" in result.output
+
+
+def test_auth_notebooklm_already_authenticated(mote_home):
+    """mote auth notebooklm with existing session shows path, asks to re-authenticate, returns if declined."""
+    session_file = mote_home / "notebooklm_session.json"
+    session_file.write_text('{"cookies": []}')
+
+    runner = CliRunner()
+
+    mock_check_result = MagicMock()
+    mock_check_result.returncode = 0
+
+    with patch("mote.cli.shutil.which", return_value="/usr/bin/playwright"), \
+         patch("mote.cli.subprocess.run", return_value=mock_check_result), \
+         patch("mote.notebooklm.run_login") as mock_login:
+        result = runner.invoke(
+            cli, ["auth", "notebooklm"],
+            env={"MOTE_HOME": str(mote_home)},
+            input="n\n",  # decline re-auth
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "session file exists" in result.output
+    mock_login.assert_not_called()
+
+
+def test_auth_notebooklm_login_failure(mote_home):
+    """mote auth notebooklm raises ClickException when run_login raises RuntimeError."""
+    runner = CliRunner()
+
+    mock_check_result = MagicMock()
+    mock_check_result.returncode = 0
+
+    with patch("mote.cli.shutil.which", return_value="/usr/bin/playwright"), \
+         patch("mote.cli.subprocess.run", return_value=mock_check_result), \
+         patch("mote.notebooklm.run_login", side_effect=RuntimeError("login failed")):
+        result = runner.invoke(cli, ["auth", "notebooklm"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code != 0
+    assert "login failed" in result.output
+
+
+def test_auth_notebooklm_no_playwright(mote_home):
+    """mote auth notebooklm when playwright not found prints install hint and aborts."""
+    runner = CliRunner()
+
+    with patch("mote.cli.shutil.which", return_value=None):
+        result = runner.invoke(cli, ["auth", "notebooklm"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code != 0
+    assert "Playwright not found" in result.output
+    assert "playwright install chromium" in result.output
+
+
+def test_auth_notebooklm_no_chromium(mote_home):
+    """mote auth notebooklm when playwright found but chromium not installed prints hint and aborts."""
+    runner = CliRunner()
+
+    mock_check_result = MagicMock()
+    mock_check_result.returncode = 1  # chromium check fails
+
+    with patch("mote.cli.shutil.which", return_value="/usr/bin/playwright"), \
+         patch("mote.cli.subprocess.run", return_value=mock_check_result):
+        result = runner.invoke(cli, ["auth", "notebooklm"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code != 0
+    assert "Playwright Chromium browser not found" in result.output
+    assert "playwright install chromium" in result.output
+
+
+def test_run_transcription_notebooklm_destination(mote_home, tmp_path):
+    """_run_transcription with notebooklm destination calls upload_transcript with correct args."""
+    from mote.cli import _run_transcription
+
+    wav = _make_test_wav(tmp_path / "test.wav")
+    out_dir = tmp_path / "out"
+    fake_md = out_dir / "test.md"
+    fake_written = [fake_md]
+
+    with patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="transcript text"), \
+         patch("mote.cli.write_transcript", return_value=fake_written), \
+         patch("mote.notebooklm.upload_transcript") as mock_upload:
+        import click
+        from click.testing import CliRunner as _Runner
+
+        @click.command()
+        def _test_cmd():
+            _run_transcription(
+                wav, "local", "sv", "medium", None, out_dir, ["markdown"], None,
+                destinations=["notebooklm"],
+                config_dir=tmp_path,
+                cfg={"destinations": {"notebooklm": {"notebook_name": "Mote Transcripts"}}},
+            )
+
+        _Runner().invoke(_test_cmd, [])
+
+    mock_upload.assert_called_once_with(tmp_path, fake_written, "Mote Transcripts")
+
+
+def test_run_transcription_notebooklm_failure_is_warning(mote_home, tmp_path):
+    """_run_transcription with notebooklm destination catches exception and prints warning."""
+    from mote.cli import _run_transcription
+
+    wav = _make_test_wav(tmp_path / "test.wav")
+    out_dir = tmp_path / "out"
+    fake_written = [out_dir / "test.md"]
+
+    with patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="transcript text"), \
+         patch("mote.cli.write_transcript", return_value=fake_written), \
+         patch("mote.notebooklm.upload_transcript", side_effect=Exception("session expired")):
+        import click
+        from click.testing import CliRunner as _Runner
+
+        @click.command()
+        def _test_cmd():
+            _run_transcription(
+                wav, "local", "sv", "medium", None, out_dir, ["markdown"], None,
+                destinations=["notebooklm"],
+                config_dir=tmp_path,
+                cfg={},
+            )
+
+        result = _Runner().invoke(_test_cmd, [])
+
+    assert result.exit_code == 0, result.output
+    assert "Warning: NotebookLM upload failed" in result.output
+    assert "mote auth notebooklm" in result.output
+
+
+def test_destination_choice_includes_notebooklm():
+    """--destination notebooklm is accepted by record and transcribe --help output."""
+    runner = CliRunner()
+
+    record_result = runner.invoke(cli, ["record", "--help"])
+    assert record_result.exit_code == 0
+    assert "notebooklm" in record_result.output
+
+    transcribe_result = runner.invoke(cli, ["transcribe", "--help"])
+    assert transcribe_result.exit_code == 0
+    assert "notebooklm" in transcribe_result.output
