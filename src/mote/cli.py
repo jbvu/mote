@@ -1,5 +1,6 @@
 """Mote CLI entry point."""
 
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -88,7 +89,9 @@ def status_command():
 @click.option("--no-transcribe", is_flag=True, default=False,
               help="Save WAV only, skip transcription.")
 @click.option("--name", default=None, help="Optional name for output files (e.g., 'standup').")
-def record_command(engine, language, no_transcribe, name):
+@click.option("--output-format", "extra_formats", multiple=True,
+              type=click.Choice(["json"]), help="Additional output formats.")
+def record_command(engine, language, no_transcribe, name, extra_formats):
     """Start recording system audio via BlackHole."""
     config_dir = get_config_dir()
     pid_path = config_dir / "mote.pid"
@@ -145,40 +148,26 @@ def record_command(engine, language, no_transcribe, name):
     model_config = cfg.get("transcription", {}).get("model", "kb-whisper-medium")
     model_alias = config_value_to_alias(model_config) or "medium"
     api_key = cfg.get("api_keys", {}).get("openai") or None
-
-    # Treat empty string api_key as None
     if api_key == "":
         api_key = None
 
+    output_cfg = cfg.get("output", {})
+    output_dir = Path(output_cfg.get("dir", "~/Documents/mote")).expanduser()
+    formats = list(output_cfg.get("format", ["markdown", "txt"]))
+    for fmt in extra_formats:
+        if fmt not in formats:
+            formats.append(fmt)
+    sanitized_name = _sanitize_name(name) if name else None
+
     try:
-        duration = get_wav_duration(wav_path)
-        transcript = transcribe_file(
-            wav_path, resolved_engine, resolved_language, model_alias, api_key
+        _run_transcription(
+            wav_path, resolved_engine, resolved_language, model_alias,
+            api_key, output_dir, formats, sanitized_name,
         )
-
-        # Write output files BEFORE deleting WAV (per D-14)
-        output_cfg = cfg.get("output", {})
-        output_dir = Path(output_cfg.get("dir", "~/Documents/mote")).expanduser()
-        formats = output_cfg.get("format", ["markdown", "txt"])
-        sanitized_name = _sanitize_name(name) if name else None
-        written = write_transcript(
-            transcript, output_dir, formats, duration, resolved_engine,
-            resolved_language, model_alias, sanitized_name,
-        )
-
-        wav_path.unlink(missing_ok=True)
-
-        # Summary line (per D-16)
-        word_count = len(transcript.split())
-        mins, secs = divmod(int(duration), 60)
-        names_str = ", ".join(p.name for p in written)
-        click.echo(f"Transcription complete ({mins}:{secs:02d}, {word_count:,} words) \u2192 {names_str}")
     except click.ClickException:
         raise
     except Exception as e:
-        raise click.ClickException(
-            f"Transcription failed: {e}\nWAV kept at: {wav_path}"
-        )
+        raise click.ClickException(f"Transcription failed: {e}\nWAV kept at: {wav_path}")
 
 
 @cli.command("list")
@@ -219,6 +208,42 @@ def list_command(show_all):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _run_transcription(
+    wav_path: Path,
+    engine: str,
+    language: str,
+    model_alias: str,
+    api_key: str | None,
+    output_dir: Path,
+    formats: list[str],
+    name: str | None,
+    delete_wav: bool = True,
+    timestamp: datetime | None = None,
+) -> list[Path]:
+    """Shared post-recording transcription pipeline.
+
+    Used by both record_command and transcribe_command (D-12).
+    Returns list of written file paths.
+    """
+    duration = get_wav_duration(wav_path)
+    transcript = transcribe_file(wav_path, engine, language, model_alias, api_key)
+
+    written = write_transcript(
+        transcript, output_dir, formats, duration, engine,
+        language, model_alias, name, timestamp=timestamp,
+    )
+
+    if delete_wav:
+        wav_path.unlink(missing_ok=True)
+
+    word_count = len(transcript.split())
+    mins, secs = divmod(int(duration), 60)
+    names_str = ", ".join(p.name for p in written)
+    click.echo(f"Transcription complete ({mins}:{secs:02d}, {word_count:,} words) \u2192 {names_str}")
+
+    return written
 
 
 def _human_size(bytes_: int) -> str:
