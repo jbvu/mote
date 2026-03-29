@@ -182,6 +182,26 @@ def record_command(engine, language, no_transcribe, name, extra_formats):
     pid_path = config_dir / "mote.pid"
     recordings_dir = config_dir / "recordings"
 
+    # Crash recovery: restore audio if previous session crashed (D-09)
+    crashed_device = _read_audio_restore(config_dir)
+    if crashed_device:
+        if _detect_switch_audio_source():
+            ok = _set_output_device(crashed_device)
+            if ok:
+                _delete_audio_restore(config_dir)
+                click.echo(f"Restored audio output to {crashed_device} (from previous crash)")
+            else:
+                click.echo(
+                    f"Warning: Could not restore audio to {crashed_device}. "
+                    f"File kept at {config_dir / AUDIO_RESTORE_FILE}"
+                )
+        else:
+            click.echo(
+                f"Warning: audio_restore.json found but SwitchAudioSource not installed. "
+                f"Manually switch audio to {crashed_device} or run: "
+                f"brew install switchaudio-osx && mote audio restore"
+            )
+
     # Check for active recording (D-12)
     alive, pid = is_recording_active(pid_path)
     if alive:
@@ -232,12 +252,44 @@ def record_command(engine, language, no_transcribe, name, extra_formats):
     device_index = device["index"]
     click.echo(f"Recording from {device['name']} (16kHz mono)")
 
+    # Audio output switching (D-02, D-03, D-04)
+    has_switcher = _detect_switch_audio_source()
+    original_device: str | None = None
+
+    if has_switcher:
+        original_device = _get_current_output_device()
+        if original_device:
+            _write_audio_restore(config_dir, original_device)
+            ok = _set_output_device("BlackHole 2ch")
+            if ok:
+                click.echo(f"Switched audio output to BlackHole 2ch (was: {original_device})")
+            else:
+                _delete_audio_restore(config_dir)
+                original_device = None
+                click.echo("Warning: Could not switch audio to BlackHole. Route audio manually.")
+        else:
+            click.echo("Warning: Could not detect current audio output device. Skipping auto-switch.")
+    else:
+        click.echo(
+            "Advisory: SwitchAudioSource not installed \u2014 route audio to BlackHole manually.\n"
+            "Install with: brew install switchaudio-osx"
+        )
+
     # Start recording (blocks until Ctrl+C)
     try:
-        wav_path = record_session(device_index, recordings_dir, pid_path)
-        click.echo(f"\nRecording saved: {wav_path}")
-    except Exception as e:
-        raise click.ClickException(f"Recording failed: {e}")
+        try:
+            wav_path = record_session(device_index, recordings_dir, pid_path)
+            click.echo(f"\nRecording saved: {wav_path}")
+        except Exception as e:
+            raise click.ClickException(f"Recording failed: {e}")
+    finally:
+        if original_device:
+            try:
+                _set_output_device(original_device)
+                _delete_audio_restore(config_dir)
+                click.echo(f"Restored audio output to {original_device}")
+            except Exception:
+                pass  # Best-effort restore; don't mask original exception (Pitfall 4)
 
     # --- Auto-transcription (D-01, D-02, D-03) ---
     if no_transcribe:
@@ -330,6 +382,39 @@ def cleanup_command():
             click.echo(f"  {d.name}")
     else:
         click.echo("No expired WAV files found.")
+
+
+# ---------------------------------------------------------------------------
+# audio command group
+# ---------------------------------------------------------------------------
+
+
+@cli.group()
+def audio():
+    """Audio device management."""
+    pass
+
+
+@audio.command("restore")
+def audio_restore_command():
+    """Restore system audio output if left on BlackHole after a crash."""
+    config_dir = get_config_dir()
+    device = _read_audio_restore(config_dir)
+    if device is None:
+        click.echo("No audio restore file found \u2014 audio output is not stuck.")
+        return
+    if not _detect_switch_audio_source():
+        raise click.ClickException(
+            "SwitchAudioSource not installed. Cannot restore automatically.\n"
+            "Install with: brew install switchaudio-osx\n"
+            f"Then run: SwitchAudioSource -t output -s '{device}'"
+        )
+    ok = _set_output_device(device)
+    if ok:
+        _delete_audio_restore(config_dir)
+        click.echo(f"Restored audio output to {device}")
+    else:
+        raise click.ClickException(f"Failed to switch to '{device}'. Is the device available?")
 
 
 @cli.command("transcribe")
