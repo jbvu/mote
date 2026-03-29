@@ -1124,3 +1124,224 @@ def test_write_read_delete_audio_restore_cycle(tmp_path):
     assert _read_audio_restore(tmp_path) == "MacBook Pro Speakers"
     _delete_audio_restore(tmp_path)
     assert _read_audio_restore(tmp_path) is None
+
+
+# ---------------------------------------------------------------------------
+# Plan 07-02, Task 2: Audio switching wired into record_command + audio restore command
+# ---------------------------------------------------------------------------
+
+
+def test_record_switches_audio_to_blackhole(mote_home):
+    """record_command with SwitchAudioSource available prints switch message per D-03."""
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BlackHole 2ch", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="text"), \
+         patch("mote.cli.write_transcript", return_value=fake_written), \
+         patch("mote.cli._detect_switch_audio_source", return_value=True), \
+         patch("mote.cli._get_current_output_device", return_value="MacBook Pro Speakers"), \
+         patch("mote.cli._set_output_device", return_value=True):
+        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    assert "Switched audio output to BlackHole 2ch (was: MacBook Pro Speakers)" in result.output
+
+
+def test_record_restores_audio_after_recording(mote_home):
+    """record_command restores audio output after recording stops per D-03."""
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BlackHole 2ch", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="text"), \
+         patch("mote.cli.write_transcript", return_value=fake_written), \
+         patch("mote.cli._detect_switch_audio_source", return_value=True), \
+         patch("mote.cli._get_current_output_device", return_value="MacBook Pro Speakers"), \
+         patch("mote.cli._set_output_device", return_value=True):
+        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    assert "Restored audio output to MacBook Pro Speakers" in result.output
+
+
+def test_record_advisory_when_no_switch_audio_source(mote_home):
+    """record_command without SwitchAudioSource prints advisory with brew install instructions per D-01."""
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BlackHole 2ch", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="text"), \
+         patch("mote.cli.write_transcript", return_value=fake_written), \
+         patch("mote.cli._detect_switch_audio_source", return_value=False):
+        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    assert "brew install switchaudio-osx" in result.output
+
+
+def test_record_crash_recovery_restores_audio(mote_home):
+    """record_command with audio_restore.json present prints crash recovery message per D-09."""
+    import json
+    # Pre-create crash recovery file
+    restore_file = mote_home / "audio_restore.json"
+    restore_file.write_text(json.dumps({"device": "MacBook Pro Speakers"}))
+
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BlackHole 2ch", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="text"), \
+         patch("mote.cli.write_transcript", return_value=fake_written), \
+         patch("mote.cli._detect_switch_audio_source", return_value=True), \
+         patch("mote.cli._get_current_output_device", return_value="BlackHole 2ch"), \
+         patch("mote.cli._set_output_device", return_value=True):
+        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    assert "from previous crash" in result.output
+
+
+def test_record_crash_recovery_deletes_restore_file(mote_home):
+    """record_command deletes audio_restore.json after successful crash recovery."""
+    import json
+    restore_file = mote_home / "audio_restore.json"
+    restore_file.write_text(json.dumps({"device": "MacBook Pro Speakers"}))
+
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BlackHole 2ch", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="text"), \
+         patch("mote.cli.write_transcript", return_value=fake_written), \
+         patch("mote.cli._detect_switch_audio_source", return_value=True), \
+         patch("mote.cli._get_current_output_device", return_value="BlackHole 2ch"), \
+         patch("mote.cli._set_output_device", return_value=True):
+        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
+
+    assert not restore_file.exists(), "audio_restore.json should be deleted after crash recovery"
+
+
+def test_record_audio_restore_file_deleted_after_success(mote_home):
+    """audio_restore.json is deleted in the finally block after successful recording."""
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+    restore_file = mote_home / "audio_restore.json"
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BlackHole 2ch", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="text"), \
+         patch("mote.cli.write_transcript", return_value=fake_written), \
+         patch("mote.cli._detect_switch_audio_source", return_value=True), \
+         patch("mote.cli._get_current_output_device", return_value="MacBook Pro Speakers"), \
+         patch("mote.cli._set_output_device", return_value=True):
+        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    assert not restore_file.exists(), "audio_restore.json should be deleted after successful recording"
+
+
+def test_record_failed_switch_deletes_restore_file(mote_home):
+    """If switch to BlackHole fails, audio_restore.json is deleted and no restore is attempted."""
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+    restore_file = mote_home / "audio_restore.json"
+
+    set_calls = []
+
+    def mock_set_device(name):
+        set_calls.append(name)
+        return False  # switch always fails
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BlackHole 2ch", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="text"), \
+         patch("mote.cli.write_transcript", return_value=fake_written), \
+         patch("mote.cli._detect_switch_audio_source", return_value=True), \
+         patch("mote.cli._get_current_output_device", return_value="MacBook Pro Speakers"), \
+         patch("mote.cli._set_output_device", side_effect=mock_set_device):
+        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    assert not restore_file.exists(), "audio_restore.json should be deleted when switch fails"
+    # The restore should not be attempted on stop (only one call to switch — the failed one)
+    assert len(set_calls) == 1
+
+
+def test_audio_restore_command_no_file(mote_home):
+    """mote audio restore with no file prints 'No audio restore file found'."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["audio", "restore"], env={"MOTE_HOME": str(mote_home)})
+    assert result.exit_code == 0, result.output
+    assert "No audio restore file found" in result.output
+
+
+def test_audio_restore_command_with_file(mote_home):
+    """mote audio restore with file restores device and deletes file."""
+    import json
+    restore_file = mote_home / "audio_restore.json"
+    restore_file.write_text(json.dumps({"device": "MacBook Pro Speakers"}))
+
+    runner = CliRunner()
+    with patch("mote.cli._detect_switch_audio_source", return_value=True), \
+         patch("mote.cli._set_output_device", return_value=True):
+        result = runner.invoke(cli, ["audio", "restore"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    assert "Restored audio output to MacBook Pro Speakers" in result.output
+    assert not restore_file.exists()
+
+
+def test_audio_restore_command_without_switch_audio_source(mote_home):
+    """mote audio restore without SwitchAudioSource raises error mentioning brew install."""
+    import json
+    restore_file = mote_home / "audio_restore.json"
+    restore_file.write_text(json.dumps({"device": "MacBook Pro Speakers"}))
+
+    runner = CliRunner()
+    with patch("mote.cli._detect_switch_audio_source", return_value=False):
+        result = runner.invoke(cli, ["audio", "restore"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code != 0
+    assert "brew install switchaudio-osx" in result.output
+
+
+def test_audio_group_help():
+    """mote audio --help shows 'Audio device management'."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["audio", "--help"])
+    assert result.exit_code == 0
+    assert "Audio device management" in result.output
