@@ -917,3 +917,84 @@ def test_record_auto_cleanup(mote_home):
 
     # The old WAV should have been deleted by auto-cleanup
     assert not old_wav.exists(), "Auto-cleanup should have deleted expired WAV"
+
+
+# ---------------------------------------------------------------------------
+# Plan 06-03, Task 2: mote config validate and mote cleanup commands
+# ---------------------------------------------------------------------------
+
+
+def test_config_validate_command_clean(mote_home):
+    """mote config validate with valid config (mocked) prints 'Configuration OK' and exits 0."""
+    runner = CliRunner()
+    with patch("mote.cli.validate_config", return_value=([], [])):
+        result = runner.invoke(cli, ["config", "validate"],
+                               env={"MOTE_HOME": str(mote_home)})
+    assert result.exit_code == 0, result.output
+    assert "Configuration OK" in result.output
+
+
+def test_config_validate_command_errors(mote_home):
+    """mote config validate with invalid engine prints error and exits non-zero."""
+    runner = CliRunner()
+    with patch("mote.cli.validate_config", return_value=(["Invalid engine 'bad'"], [])):
+        result = runner.invoke(cli, ["config", "validate"],
+                               env={"MOTE_HOME": str(mote_home)})
+    assert result.exit_code != 0
+    assert "Invalid engine" in result.output or "error" in result.output.lower()
+
+
+def test_config_validate_command_warnings(mote_home):
+    """mote config validate with openai engine and no key prints warning but exits 0."""
+    runner = CliRunner()
+    with patch("mote.cli.validate_config", return_value=([], ["engine=openai but no api_keys.openai set."])):
+        result = runner.invoke(cli, ["config", "validate"],
+                               env={"MOTE_HOME": str(mote_home)})
+    assert result.exit_code == 0, result.output
+    assert "Warning" in result.output or "warning" in result.output.lower()
+    assert "Configuration OK" in result.output
+
+
+def test_cleanup_command_deletes(mote_home):
+    """mote cleanup with expired WAVs prints 'Deleted N file(s)'."""
+    import os
+    import time
+    recordings_dir = mote_home / "recordings"
+    recordings_dir.mkdir(parents=True, exist_ok=True)
+    old_wav = recordings_dir / "old_recording.wav"
+    old_wav.write_bytes(b"RIFF" + b"\x00" * 100)
+    # Set mtime to 30 days ago (way beyond default 7-day retention)
+    old_mtime = time.time() - (30 * 86400)
+    os.utime(old_wav, (old_mtime, old_mtime))
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["cleanup"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    assert "Deleted" in result.output
+    assert not old_wav.exists()
+
+
+def test_cleanup_command_nothing(mote_home):
+    """mote cleanup with no expired WAVs prints 'No expired WAV files found'."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["cleanup"], env={"MOTE_HOME": str(mote_home)})
+    assert result.exit_code == 0, result.output
+    assert "No expired WAV files found" in result.output
+
+
+def test_cleanup_command_retention_zero(mote_home):
+    """mote cleanup with wav_retention_days=0 prints 'WAV retention disabled'."""
+    import tomlkit
+    config_path = mote_home / "config.toml"
+    doc = tomlkit.document()
+    cleanup_table = tomlkit.table()
+    cleanup_table.add("wav_retention_days", 0)
+    doc.add("cleanup", cleanup_table)
+    config_path.write_text(tomlkit.dumps(doc))
+    config_path.chmod(0o600)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["cleanup"], env={"MOTE_HOME": str(mote_home)})
+    assert result.exit_code == 0, result.output
+    assert "retention disabled" in result.output.lower() or "disabled" in result.output.lower()
