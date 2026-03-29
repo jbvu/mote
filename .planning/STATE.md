@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-03-29T11:42:39.261Z"
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-03-29T11:48:21.370Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 ## Current Position
 
 Phase: 06 (cli-polish-and-config-reliability) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-03-29
 
@@ -62,6 +62,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05 P01 | 126 | 1 tasks | 2 files |
 | Phase 05 P02 | 10 | 2 tasks | 2 files |
 | Phase 06 P01 | 175 | 2 tasks | 4 files |
+| Phase 06 P02 | 480 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -104,6 +105,9 @@ Recent decisions affecting current work:
 - [Phase 06]: validate_config() imports are at module level (not lazy) — config.py has no startup cost concern unlike transcribe.py
 - [Phase 06]: JSON output is opt-in — json not added to default config format list to avoid file clutter per D-08
 - [Phase 06]: cleanup_old_wavs() returns early if retention_days <= 0 to support keep-forever semantics
+- [Phase 06]: _run_transcription() lives in cli.py (not a new module) because it depends on click.echo — a CLI concern
+- [Phase 06]: transcribe_command passes delete_wav=False to preserve the user's source WAV file
+- [Phase 06]: WAV mtime used as write_transcript timestamp for transcribe_command so overwrite detection is deterministic
 
 ### Pending Todos
 
@@ -116,6 +120,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-29T11:42:39.255Z
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-03-29T11:48:21.364Z
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None
