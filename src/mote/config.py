@@ -171,7 +171,7 @@ def _write_default_config(path: Path) -> None:
     doc.add("cleanup", cleanup_table)
 
     destinations = tomlkit.table()
-    destinations.add(tomlkit.comment("Active destinations: local, drive"))
+    destinations.add(tomlkit.comment("Active destinations: local, drive, notebooklm"))
     destinations.add("active", ["local"])
     doc.add("destinations", destinations)
 
@@ -179,6 +179,11 @@ def _write_default_config(path: Path) -> None:
     destinations_drive.add(tomlkit.comment("Google Drive folder name for uploads"))
     destinations_drive.add("folder_name", "Mote Transcripts")
     destinations["drive"] = destinations_drive
+
+    destinations_notebooklm = tomlkit.table()
+    destinations_notebooklm.add(tomlkit.comment("NotebookLM notebook name for uploads (experimental)"))
+    destinations_notebooklm.add("notebook_name", "Mote Transcripts")
+    destinations["notebooklm"] = destinations_notebooklm
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(tomlkit.dumps(doc))

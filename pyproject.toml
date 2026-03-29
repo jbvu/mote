@@ -28,6 +28,9 @@ dev = [
     "pytest>=8.0",
     "ruff",
 ]
+notebooklm = [
+    "notebooklm-py[browser]>=0.3.4",
+]
 
 [project.scripts]
 mote = "mote.cli:cli"
