@@ -288,6 +288,13 @@ def test_default_config_has_destinations_drive(mote_home):
     assert cfg["destinations"]["drive"]["folder_name"] == "Mote Transcripts"
 
 
+def test_default_config_has_notebooklm_section(mote_home):
+    """Default config includes [destinations.notebooklm] section with notebook_name."""
+    cfg = load_config()
+    assert "notebooklm" in cfg.get("destinations", {})
+    assert cfg["destinations"]["notebooklm"]["notebook_name"] == "Mote Transcripts"
+
+
 # ---------------------------------------------------------------------------
 # set_config_value handles 3-part keys
 # ---------------------------------------------------------------------------
