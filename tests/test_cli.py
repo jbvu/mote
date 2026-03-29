@@ -180,7 +180,7 @@ def test_models_group_help():
 
 
 def test_record_orphan_warning(mote_home):
-    """mote record with existing WAV files warns about orphaned recordings."""
+    """mote record with existing WAV files warns about orphaned recordings and points to mote transcribe."""
     recordings_dir = mote_home / "recordings"
     recordings_dir.mkdir(parents=True, exist_ok=True)
     orphan = recordings_dir / "mote_20260101_120000.wav"
@@ -194,6 +194,8 @@ def test_record_orphan_warning(mote_home):
     # Orphan warning should mention the WAV file or use "Found" / "orphan"
     combined = result.output.lower()
     assert "found" in combined or "orphan" in combined or "mote_20260101_120000.wav" in result.output
+    # D-02: orphan warning must include pointer to mote transcribe command
+    assert "mote transcribe" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -700,3 +702,197 @@ def test_transcribe_uses_wav_mtime(mote_home, tmp_path):
     assert ts is not None
     expected_ts = datetime.fromtimestamp(old_mtime)
     assert ts == expected_ts
+
+
+# ---------------------------------------------------------------------------
+# Plan 06-03, Task 1: Retry loop, validation wiring, orphan enhancement, auto-cleanup
+# ---------------------------------------------------------------------------
+
+
+def test_transcribe_retry_yes(mote_home, tmp_path):
+    """On transcription failure, user answers yes -> retranscription succeeds."""
+    runner = CliRunner()
+    wav = _make_test_wav(tmp_path / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    call_count = {"n": 0}
+
+    def side_effect(*args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise RuntimeError("API timeout")
+        return "transcript text"
+
+    with patch("mote.cli.load_config", return_value={
+        "transcription": {"engine": "local", "language": "sv", "model": "kb-whisper-medium"},
+        "output": {"dir": str(out_dir), "format": ["markdown"]},
+        "api_keys": {},
+    }), patch("mote.cli.validate_config", return_value=([], [])), \
+       patch("mote.cli.get_wav_duration", return_value=60.0), \
+       patch("mote.cli.transcribe_file", side_effect=side_effect), \
+       patch("mote.cli.write_transcript", return_value=fake_written):
+        result = runner.invoke(
+            cli, ["transcribe", str(wav)],
+            env={"MOTE_HOME": str(mote_home)},
+            input="y\n",
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "Transcription complete" in result.output
+    assert call_count["n"] == 2
+
+
+def test_transcribe_retry_no(mote_home, tmp_path):
+    """On transcription failure, user answers no -> exits with WAV kept at message."""
+    runner = CliRunner()
+    wav = _make_test_wav(tmp_path / "test.wav")
+    out_dir = mote_home / "transcripts"
+
+    with patch("mote.cli.load_config", return_value={
+        "transcription": {"engine": "local", "language": "sv", "model": "kb-whisper-medium"},
+        "output": {"dir": str(out_dir), "format": ["markdown"]},
+        "api_keys": {},
+    }), patch("mote.cli.validate_config", return_value=([], [])), \
+       patch("mote.cli.get_wav_duration", return_value=60.0), \
+       patch("mote.cli.transcribe_file", side_effect=RuntimeError("API timeout")):
+        result = runner.invoke(
+            cli, ["transcribe", str(wav)],
+            env={"MOTE_HOME": str(mote_home)},
+            input="n\n",
+        )
+
+    assert result.exit_code != 0
+    assert "WAV kept at" in result.output
+
+
+def test_record_retry_yes(mote_home):
+    """On transcription failure during record, user answers yes -> retranscription succeeds."""
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    call_count = {"n": 0}
+
+    def side_effect(*args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise RuntimeError("API timeout")
+        return "transcript text"
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", side_effect=side_effect), \
+         patch("mote.cli.write_transcript", return_value=fake_written):
+        result = runner.invoke(
+            cli, ["record"],
+            env={"MOTE_HOME": str(mote_home)},
+            input="y\n",
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "Transcription complete" in result.output
+    assert call_count["n"] == 2
+
+
+def test_record_validates_engine(mote_home):
+    """mote record with invalid engine in config exits before any recording."""
+    import tomlkit
+    # Write a config with an invalid engine
+    config_path = mote_home / "config.toml"
+    doc = tomlkit.document()
+    transcription = tomlkit.table()
+    transcription.add("engine", "invalid")
+    transcription.add("language", "sv")
+    transcription.add("model", "kb-whisper-medium")
+    doc.add("transcription", transcription)
+    config_path.write_text(tomlkit.dumps(doc))
+    config_path.chmod(0o600)
+
+    runner = CliRunner()
+    with patch("mote.cli.find_blackhole_device") as mock_bh, \
+         patch("mote.cli.record_session") as mock_rec:
+        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code != 0
+    combined = result.output.lower()
+    assert "invalid engine" in combined or "invalid" in combined
+    mock_bh.assert_not_called()
+    mock_rec.assert_not_called()
+
+
+def test_record_validates_model(mote_home):
+    """mote record with engine=local and undownloaded model exits before recording."""
+    runner = CliRunner()
+    # Default config uses engine=local; model won't be downloaded in CI
+    with patch("mote.cli.find_blackhole_device") as mock_bh, \
+         patch("mote.cli.record_session") as mock_rec, \
+         patch("mote.cli.is_model_downloaded", return_value=False):
+        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code != 0
+    assert "not downloaded" in result.output.lower() or "model" in result.output.lower()
+    mock_bh.assert_not_called()
+    mock_rec.assert_not_called()
+
+
+def test_transcribe_validates_engine(mote_home, tmp_path):
+    """mote transcribe with invalid engine in config exits with error before transcription."""
+    import tomlkit
+    # Write a config with an invalid engine
+    config_path = mote_home / "config.toml"
+    doc = tomlkit.document()
+    transcription = tomlkit.table()
+    transcription.add("engine", "invalid")
+    transcription.add("language", "sv")
+    transcription.add("model", "kb-whisper-medium")
+    doc.add("transcription", transcription)
+    config_path.write_text(tomlkit.dumps(doc))
+    config_path.chmod(0o600)
+
+    wav = _make_test_wav(tmp_path / "test.wav")
+    runner = CliRunner()
+    with patch("mote.cli.transcribe_file") as mock_tx:
+        result = runner.invoke(
+            cli, ["transcribe", str(wav)],
+            env={"MOTE_HOME": str(mote_home)},
+        )
+
+    assert result.exit_code != 0
+    combined = result.output.lower()
+    assert "invalid engine" in combined or "invalid" in combined
+    mock_tx.assert_not_called()
+
+
+def test_record_auto_cleanup(mote_home):
+    """mote record startup silently runs cleanup_old_wavs before orphan check."""
+    import os
+    import time
+    recordings_dir = mote_home / "recordings"
+    recordings_dir.mkdir(parents=True, exist_ok=True)
+    old_wav = recordings_dir / "mote_20200101_120000.wav"
+    old_wav.write_bytes(b"RIFF" + b"\x00" * 100)
+    # Set mtime to 30 days ago
+    old_mtime = time.time() - (30 * 86400)
+    os.utime(old_wav, (old_mtime, old_mtime))
+
+    fake_wav = recordings_dir / "mote_20260327_000000.wav"
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
+         patch("mote.cli.record_session", return_value=fake_wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="text"), \
+         patch("mote.cli.write_transcript", return_value=fake_written):
+        result = runner_invoke = CliRunner().invoke(
+            cli, ["record"],
+            env={"MOTE_HOME": str(mote_home)},
+        )
+
+    # The old WAV should have been deleted by auto-cleanup
+    assert not old_wav.exists(), "Auto-cleanup should have deleted expired WAV"
