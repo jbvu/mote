@@ -326,3 +326,79 @@ def test_find_orphan_recordings_no_dir(mote_home):
 
     orphans = find_orphan_recordings(recordings_dir)
     assert orphans == []
+
+
+# ---------------------------------------------------------------------------
+# Silence detection constants and make_display silence_warning
+# ---------------------------------------------------------------------------
+
+def test_silence_threshold_db_value():
+    """SILENCE_THRESHOLD_DB equals -50.0."""
+    from mote.audio import SILENCE_THRESHOLD_DB
+
+    assert SILENCE_THRESHOLD_DB == -50.0
+
+
+def test_silence_warn_seconds_value():
+    """SILENCE_WARN_SECONDS equals 30."""
+    from mote.audio import SILENCE_WARN_SECONDS
+
+    assert SILENCE_WARN_SECONDS == 30
+
+
+def test_make_display_no_silence_warning_by_default():
+    """make_display with no third arg does NOT contain 'Silence detected' (backward compat)."""
+    from mote.audio import make_display
+
+    result = make_display(60, -55.0)
+    assert "Silence detected" not in result.plain
+
+
+def test_make_display_silence_warning_false():
+    """make_display(60, -55.0, silence_warning=False) does NOT contain 'Silence detected'."""
+    from mote.audio import make_display
+
+    result = make_display(60, -55.0, silence_warning=False)
+    assert "Silence detected" not in result.plain
+
+
+def test_make_display_silence_warning_true_contains_message():
+    """make_display with silence_warning=True contains 'Silence detected' and 'check audio routing'."""
+    from mote.audio import make_display
+
+    result = make_display(60, -55.0, silence_warning=True)
+    plain = result.plain
+    assert "Silence detected" in plain
+    assert "check audio routing" in plain
+
+
+def test_make_display_silence_warning_style():
+    """make_display with silence_warning=True has 'bold yellow' style on the warning segment."""
+    from mote.audio import make_display
+    from rich.text import Text
+
+    result = make_display(60, -55.0, silence_warning=True)
+    assert isinstance(result, Text)
+    # Check that at least one span uses bold yellow style
+    styles = [str(span.style) for span in result._spans]
+    assert any("bold yellow" in s for s in styles)
+
+
+def test_rms_db_complete_silence_below_threshold():
+    """rms_db on np.zeros returns -60.0, which is below SILENCE_THRESHOLD_DB."""
+    from mote.audio import rms_db, SILENCE_THRESHOLD_DB
+
+    data = np.zeros(1024, dtype=np.float32)
+    result = rms_db(data)
+    assert result == -60.0
+    assert result < SILENCE_THRESHOLD_DB
+
+
+def test_rms_db_quiet_audio_above_threshold():
+    """rms_db on np.full(1024, 0.01) returns value above SILENCE_THRESHOLD_DB."""
+    from mote.audio import rms_db, SILENCE_THRESHOLD_DB
+
+    data = np.full(1024, 0.01, dtype=np.float32)
+    result = rms_db(data)
+    # 20 * log10(0.01) = -40 dB, which is above -50 dB threshold
+    assert result > SILENCE_THRESHOLD_DB
