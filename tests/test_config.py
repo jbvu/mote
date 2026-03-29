@@ -265,3 +265,58 @@ def test_default_config_has_cleanup_section(mote_home):
     cfg = load_config()
     assert "cleanup" in cfg
     assert cfg["cleanup"]["wav_retention_days"] == 7
+
+
+# ---------------------------------------------------------------------------
+# Default config has [destinations] section
+# ---------------------------------------------------------------------------
+
+
+def test_default_config_has_destinations(mote_home):
+    """ensure_config() creates config with [destinations] active = ['local']."""
+    ensure_config()
+    cfg = load_config()
+    assert "destinations" in cfg
+    assert list(cfg["destinations"]["active"]) == ["local"]
+
+
+def test_default_config_has_destinations_drive(mote_home):
+    """ensure_config() creates config with [destinations.drive] folder_name."""
+    ensure_config()
+    cfg = load_config()
+    assert "drive" in cfg["destinations"]
+    assert cfg["destinations"]["drive"]["folder_name"] == "Mote Transcripts"
+
+
+# ---------------------------------------------------------------------------
+# set_config_value handles 3-part keys
+# ---------------------------------------------------------------------------
+
+
+def test_set_config_value_3part_key(mote_home):
+    """set_config_value('destinations.drive.folder_name', 'My Folder') changes value."""
+    ensure_config()
+    set_config_value("destinations.drive.folder_name", "My Folder")
+    cfg = load_config()
+    assert cfg["destinations"]["drive"]["folder_name"] == "My Folder"
+
+
+def test_set_config_value_3part_unknown_section(mote_home):
+    """set_config_value with unknown top-level section raises KeyError."""
+    ensure_config()
+    with pytest.raises(KeyError, match="Unknown config section"):
+        set_config_value("nonexistent.drive.folder_name", "x")
+
+
+def test_set_config_value_3part_unknown_subsection(mote_home):
+    """set_config_value with unknown subsection raises KeyError."""
+    ensure_config()
+    with pytest.raises(KeyError, match="Unknown config subsection"):
+        set_config_value("destinations.nonexistent.folder_name", "x")
+
+
+def test_set_config_value_3part_unknown_key(mote_home):
+    """set_config_value with unknown key in subsection raises KeyError."""
+    ensure_config()
+    with pytest.raises(KeyError, match="Unknown config key"):
+        set_config_value("destinations.drive.nonexistent", "x")
