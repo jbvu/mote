@@ -1,5 +1,8 @@
 """Mote CLI entry point."""
 
+import json
+import shutil
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -27,6 +30,66 @@ from mote.models import (
 )
 from mote.transcribe import transcribe_file, get_wav_duration
 from mote.output import write_transcript, list_transcripts, _sanitize_name
+
+
+AUDIO_RESTORE_FILE = "audio_restore.json"
+
+
+# ---------------------------------------------------------------------------
+# SwitchAudioSource helpers
+# ---------------------------------------------------------------------------
+
+
+def _detect_switch_audio_source() -> bool:
+    """Return True if SwitchAudioSource is on PATH."""
+    return shutil.which("SwitchAudioSource") is not None
+
+
+def _get_current_output_device() -> str | None:
+    """Return current audio output device name, or None on failure."""
+    try:
+        result = subprocess.run(
+            ["SwitchAudioSource", "-t", "output", "-c"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return result.stdout.strip() or None
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+
+
+def _set_output_device(device_name: str) -> bool:
+    """Switch audio output to device_name. Return True on success."""
+    try:
+        result = subprocess.run(
+            ["SwitchAudioSource", "-t", "output", "-s", device_name],
+            capture_output=True, text=True, timeout=5,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def _write_audio_restore(config_dir: Path, device_name: str) -> None:
+    """Write crash recovery file before switching audio output."""
+    restore_path = config_dir / AUDIO_RESTORE_FILE
+    restore_path.write_text(json.dumps({"device": device_name}))
+
+
+def _read_audio_restore(config_dir: Path) -> str | None:
+    """Read device name from crash recovery file, or None if absent/malformed."""
+    restore_path = config_dir / AUDIO_RESTORE_FILE
+    if not restore_path.exists():
+        return None
+    try:
+        data = json.loads(restore_path.read_text())
+        return data.get("device")
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _delete_audio_restore(config_dir: Path) -> None:
+    """Remove crash recovery file."""
+    (config_dir / AUDIO_RESTORE_FILE).unlink(missing_ok=True)
 
 
 @click.group()
