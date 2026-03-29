@@ -158,10 +158,10 @@ Plans:
   2. After transcription, if the notebooklm destination is configured, the transcript is uploaded to NotebookLM as a new source
   3. When the NotebookLM session expires (typically weekly), the user sees a clear re-auth message rather than a silent failure
   4. A NotebookLM upload failure never propagates as a transcription failure — local files and Drive upload are unaffected
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 09-01-PLAN.md — NotebookLM module (notebooklm.py), config extension, pyproject.toml update, unit tests
+- [x] 09-01-PLAN.md — NotebookLM module (notebooklm.py), config extension, pyproject.toml update, unit tests
 - [ ] 09-02-PLAN.md — CLI wiring: auth notebooklm command, _run_transcription upload block, --destination notebooklm
 
 ## Progress
@@ -179,4 +179,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 6. CLI Polish and Config Reliability | 3/3 | Complete   | 2026-03-29 |
 | 7. Audio Improvements | 2/2 | Complete   | 2026-03-29 |
 | 8. Google Drive Integration | 2/2 | Complete   | 2026-03-29 |
-| 9. NotebookLM Integration | 0/2 | Planning complete | - |
+| 9. NotebookLM Integration | 1/2 | In Progress|  |

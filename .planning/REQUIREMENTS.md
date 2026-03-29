@@ -76,7 +76,7 @@
 
 - [x] **INT-03**: User can configure transcript destinations via `[destinations]` config section and `--destination` flag
 - [x] **INT-04**: User can upload transcripts to Google Drive via `mote auth google` (one-time OAuth2 browser consent) + automatic upload after transcription
-- [ ] **INT-05**: User can upload transcripts to NotebookLM via `mote auth notebooklm` (experimental — unofficial API via notebooklm-py, sessions expire weekly)
+- [x] **INT-05**: User can upload transcripts to NotebookLM via `mote auth notebooklm` (experimental — unofficial API via notebooklm-py, sessions expire weekly)
 
 ## v3+ Requirements
 
@@ -160,7 +160,7 @@
 | AUD-06 | Phase 7 | Complete |
 | INT-03 | Phase 8 | Complete |
 | INT-04 | Phase 8 | Complete |
-| INT-05 | Phase 9 | Pending |
+| INT-05 | Phase 9 | Complete |
 
 **Coverage:**
 - v1 requirements: 32 total, all complete
