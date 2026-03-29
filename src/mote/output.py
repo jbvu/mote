@@ -1,5 +1,6 @@
 """Transcript output formatting."""
 
+import json
 import re
 from datetime import datetime
 from pathlib import Path
@@ -106,6 +107,23 @@ def write_transcript(
         txt_path = output_dir / _build_filename(ts, name, "txt")
         txt_path.write_text(transcript, encoding="utf-8")
         written.append(txt_path)
+
+    if "json" in formats:
+        payload = {
+            "date": ts.isoformat(),
+            "duration": round(duration_seconds),
+            "words": len(transcript.split()),
+            "engine": engine,
+            "language": language,
+            "model": model_alias,
+            "transcript": transcript,
+        }
+        json_path = output_dir / _build_filename(ts, name, "json")
+        json_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        written.append(json_path)
 
     return written
 
