@@ -152,12 +152,21 @@
 | OUT-03 | Phase 5 | Complete |
 | OUT-04 | Phase 5 | Complete |
 | CLI-05 | Phase 5 | Complete |
+| REL-01 | Phase 6 | Pending |
+| INT-02 | Phase 6 | Pending |
+| CLI-07 | Phase 6 | Pending |
+| CLI-08 | Phase 6 | Pending |
+| AUD-05 | Phase 7 | Pending |
+| AUD-06 | Phase 7 | Pending |
+| INT-03 | Phase 8 | Pending |
+| INT-04 | Phase 8 | Pending |
+| INT-05 | Phase 9 | Pending |
 
 **Coverage:**
 - v1 requirements: 32 total, all complete
 - v2.0 requirements: 9 total, pending
-- Mapped to phases: 32 (v1), 0 (v2.0)
+- Mapped to phases: 32 (v1), 9 (v2.0)
 
 ---
 *Requirements defined: 2026-03-27*
-*Last updated: 2026-03-29 — v2.0 milestone requirements defined*
+*Last updated: 2026-03-28 — v2.0 traceability mapped to phases 6-9*

@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: integration-and-polish
 status: planning
-stopped_at: Milestone v2.0 started
-last_updated: "2026-03-29T00:00:00.000Z"
-last_activity: 2026-03-29
+stopped_at: Roadmap created — v2.0 phases 6-9 defined
+last_updated: "2026-03-28T00:00:00.000Z"
+last_activity: 2026-03-28
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,16 +18,16 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-27)
+See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Accurate Swedish-language meeting transcription that actually works
-**Current focus:** Phase 05 — output-and-transcript-management
+**Current focus:** Phase 06 — cli-polish-and-config-reliability
 
 ## Current Position
 
-Phase: 05
+Phase: 06
 Plan: Not started
-Status: Phase complete — ready for verification
+Status: Roadmap created — ready to plan Phase 6
 Last activity: 2026-03-28
 
 Progress: [░░░░░░░░░░] 0%
@@ -94,18 +94,24 @@ Recent decisions affecting current work:
 - [Phase 05-01]: list_transcripts returns [] silently for missing/malformed files; sorted newest-first by mtime
 - [Phase 05]: write_transcript called before wav_path.unlink() — WAV preservation on failure requires this ordering
 - [Phase 05]: mote list defaults to 20 most recent transcripts; --all shows unbounded list
+- [v2.0 roadmap]: Phase 6 must ship _run_transcription() helper before destinations are wired — both record and transcribe share the post-transcription delivery path
+- [v2.0 roadmap]: Config validation: absent v2 keys get silent defaults; error only on present-but-invalid values — must not break v1 configs
+- [v2.0 roadmap]: Destination errors are warnings not failures — local files always written first; Drive/NotebookLM failure never appears as transcription failure
+- [v2.0 roadmap]: Audio recovery file: write ~/.mote/audio_restore.json before switching to BlackHole; try/finally alone is insufficient for SIGKILL scenarios
+- [v2.0 roadmap]: Google OAuth: always pass access_type='offline' and prompt='consent' to run_local_server(); use port=0 only (OOB flow deprecated Oct 2022)
+- [v2.0 roadmap]: NotebookLM is best-effort optional — wrap all calls in try/except; surface as warnings; Drive-first is the stable path; check notebooklm-py GitHub issues before starting Phase 9
 
 ### Pending Todos
 
-None yet.
+- Check notebooklm-py GitHub issues and recent commits before planning Phase 9 — if broken/unmaintained, skip Phase 9 and document Drive-as-intermediary as the recommended workflow
+- Verify SwitchAudioSource works on macOS 14/15 before implementing Phase 7
 
 ### Blockers/Concerns
 
-- Phase 5 (Google Drive in research) is deferred to v2 in REQUIREMENTS.md — confirmed not in v1 scope
-- Config path discrepancy between research (suggests ~/.config/mote/) and requirements (CFG-01 says ~/.mote/config.toml) — resolve at Phase 1 plan
+- None currently
 
 ## Session Continuity
 
-Last session: 2026-03-28T19:38:37.441Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-03-28T00:00:00.000Z
+Stopped at: v2.0 roadmap created (phases 6-9)
 Resume file: None

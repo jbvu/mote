@@ -4,6 +4,8 @@
 
 Mote is built in five phases, each delivering a coherent, independently verifiable capability. The order is forced by dependencies: the project foundation comes first (config, packaging, test harness), then audio capture (the physical pipeline into BlackHole), then model management (models must exist before local transcription runs), then the transcription engine (the core differentiator), and finally output formatting and transcript management (completing the capture-to-file workflow). After all five phases, `mote record` captures a meeting, transcribes it in Swedish via KB-Whisper or OpenAI, and writes Markdown/text output ready for Google Drive.
 
+v2.0 adds four phases (6-9) that connect Mote to external services and polish the CLI experience. The build order is forced by dependencies: config validation and the shared `_run_transcription()` helper must exist before destinations are wired (Phase 6 first); audio improvements are independent and share a module (Phase 7 together); Google Drive is the stable primary delivery path (Phase 8 before NotebookLM); NotebookLM wraps an unofficial API and comes last as an optional enhancement (Phase 9).
+
 ## Phases
 
 **Phase Numbering:**
@@ -17,6 +19,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Model Management** - Download, list, and delete KB-Whisper models (completed 2026-03-28)
 - [x] **Phase 4: Transcription Engine** - Local KB-Whisper and OpenAI Whisper transcription (completed 2026-03-28)
 - [x] **Phase 5: Output and Transcript Management** - Formatted output files and transcript listing (completed 2026-03-28)
+- [ ] **Phase 6: CLI Polish and Config Reliability** - Config validation, JSON output, transcribe-from-file, retry and orphan flows
+- [ ] **Phase 7: Audio Improvements** - Silence detection warning and auto-switch BlackHole routing
+- [ ] **Phase 8: Google Drive Integration** - OAuth2 auth flow and automatic Drive upload after transcription
+- [ ] **Phase 9: NotebookLM Integration** - Experimental upload via unofficial notebooklm-py API
 
 ## Phase Details
 
@@ -96,10 +102,56 @@ Plans:
 - [x] 05-01-PLAN.md — Output module: write_transcript() and list_transcripts() with unit tests
 - [x] 05-02-PLAN.md — CLI wiring: --name flag, write integration, mote list command with integration tests
 
+### Phase 6: CLI Polish and Config Reliability
+**Goal**: Users can transcribe existing WAV files, recover from failures without losing recordings, and trust that startup catches misconfiguration before wasting meeting time
+**Depends on**: Phase 5
+**Requirements**: REL-01, INT-02, CLI-07, CLI-08
+**Success Criteria** (what must be TRUE):
+  1. `mote transcribe <file>` accepts an existing WAV file and produces transcript output with the same engine/language/name flags as `mote record`
+  2. When transcription fails, the WAV file is kept and the user is prompted to retry; answering yes retranscribes without re-recording
+  3. On `mote record` startup, any orphaned WAV files from previous failures are detected and the user is offered transcription before recording begins
+  4. Starting `mote record` with an invalid engine name, missing model, or malformed config path prints a clear error and exits before recording starts
+  5. `mote transcribe <file> --output-format json` produces a JSON transcript file alongside the Markdown and plain text files
+**Plans**: TBD
+
+### Phase 7: Audio Improvements
+**Goal**: Recording starts reliably on BlackHole without manual audio switching, and users are warned early when silence suggests the routing is wrong
+**Depends on**: Phase 6
+**Requirements**: AUD-05, AUD-06
+**Success Criteria** (what must be TRUE):
+  1. When `mote record` starts, system audio output automatically switches to BlackHole; when recording stops, the original output device is restored
+  2. If SwitchAudioSource is not installed, `mote record` starts normally with a one-time advisory message instead of failing
+  3. If silence is sustained for more than 30 seconds during recording, a warning is printed to the terminal without stopping the recording
+  4. After a crash or force-quit with BlackHole active, the next `mote record` startup detects the unrestored state and recovers to the original device
+**Plans**: TBD
+
+### Phase 8: Google Drive Integration
+**Goal**: Transcripts are automatically uploaded to Google Drive after each recording, completing the capture-to-Drive workflow without manual file management
+**Depends on**: Phase 6
+**Requirements**: INT-03, INT-04
+**Success Criteria** (what must be TRUE):
+  1. `mote auth google` opens a browser consent page and stores an OAuth2 refresh token; subsequent runs do not require re-authentication
+  2. After transcription completes, the transcript is automatically uploaded to the configured Google Drive folder
+  3. A Drive upload failure is reported as a warning and does not mark the transcription as failed — local files are always written first
+  4. User can set `--destination drive` per-run or configure drive as the default destination in config
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 9: NotebookLM Integration
+**Goal**: Users who want automated NotebookLM delivery have a best-effort path, with clear expectations that it is experimental and may require periodic re-authentication
+**Depends on**: Phase 8
+**Requirements**: INT-05
+**Success Criteria** (what must be TRUE):
+  1. `mote auth notebooklm` initiates the NotebookLM login flow and stores a session credential
+  2. After transcription, if the notebooklm destination is configured, the transcript is uploaded to NotebookLM as a new source
+  3. When the NotebookLM session expires (typically weekly), the user sees a clear re-auth message rather than a silent failure
+  4. A NotebookLM upload failure never propagates as a transcription failure — local files and Drive upload are unaffected
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -108,3 +160,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 3. Model Management | 1/1 | Complete   | 2026-03-28 |
 | 4. Transcription Engine | 2/2 | Complete   | 2026-03-28 |
 | 5. Output and Transcript Management | 2/2 | Complete   | 2026-03-28 |
+| 6. CLI Polish and Config Reliability | 0/? | Not started | - |
+| 7. Audio Improvements | 0/? | Not started | - |
+| 8. Google Drive Integration | 0/? | Not started | - |
+| 9. NotebookLM Integration | 0/? | Not started | - |
