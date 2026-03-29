@@ -115,6 +115,50 @@ def make_display(elapsed_s: int, db: float, silence_warning: bool = False) -> Te
     return t
 
 
+class SilenceTracker:
+    """Track sustained silence and emit a one-shot warning after threshold seconds.
+
+    Silence is defined as audio below threshold_db. When silence has been
+    sustained for warn_seconds, update() returns True. The warning is
+    suppressed until audio resumes above threshold_db (reset), at which
+    point a new window starts.
+
+    Args:
+        threshold_db: dB level below which audio is considered silence.
+        warn_seconds: seconds of sustained silence before warning.
+    """
+
+    def __init__(
+        self,
+        threshold_db: float = SILENCE_THRESHOLD_DB,
+        warn_seconds: float = SILENCE_WARN_SECONDS,
+    ) -> None:
+        self.threshold_db = threshold_db
+        self.warn_seconds = warn_seconds
+        self._start: Optional[float] = None
+        self._warned = False
+
+    def update(self, db: float) -> bool:
+        """Update silence state with current dB level.
+
+        Args:
+            db: current audio level in dB.
+
+        Returns:
+            True if silence warning should be shown, False otherwise.
+        """
+        if db < self.threshold_db:
+            if self._start is None:
+                self._start = time.monotonic()
+            elif not self._warned and (time.monotonic() - self._start) >= self.warn_seconds:
+                self._warned = True
+        else:
+            # Audio resumed — reset for next stretch (D-07)
+            self._start = None
+            self._warned = False
+        return self._warned
+
+
 def write_wav(path: Path, chunks: list, samplerate: int = 16000) -> None:
     """Write accumulated float32 chunks to a 16kHz mono 16-bit WAV file (D-06).
 
@@ -234,6 +278,7 @@ def record_session(device_index: int, recordings_dir: Path, pid_path: Path) -> P
 
         start = time.monotonic()
         current_db = -60.0
+        silence = SilenceTracker()
 
         with sd.InputStream(
             samplerate=SAMPLE_RATE,
@@ -252,7 +297,8 @@ def record_session(device_index: int, recordings_dir: Path, pid_path: Path) -> P
                     except queue.Empty:
                         pass  # just check stop_event again
                     elapsed = int(time.monotonic() - start)
-                    live.update(make_display(elapsed, current_db))
+                    silence_warned = silence.update(current_db)
+                    live.update(make_display(elapsed, current_db, silence_warned))
 
     finally:
         # Always clean up PID file (Pitfall 4)
