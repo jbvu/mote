@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.table import Table
 
 from mote import __version__
-from mote.config import get_config_dir, get_config_path, ensure_config, load_config, set_config_value
+from mote.config import get_config_dir, get_config_path, ensure_config, load_config, set_config_value, validate_config, cleanup_old_wavs
 from mote.audio import (
     find_blackhole_device,
     record_session,
@@ -109,6 +109,21 @@ def record_command(engine, language, no_transcribe, name, extra_formats):
         click.echo(f"Warning: Found stale PID file (process {pid} is dead). Cleaning up.")
         pid_path.unlink(missing_ok=True)
 
+    # Pre-flight config validation (D-04)
+    cfg = load_config()
+    errors, warnings = validate_config(cfg)
+    for w in warnings:
+        click.echo(f"Warning: {w}")
+    if errors:
+        for e in errors:
+            click.echo(f"Error: {e}")
+        raise click.ClickException("Fix configuration errors before recording.")
+
+    # Auto-cleanup expired WAVs (D-14)
+    retention_days = cfg.get("cleanup", {}).get("wav_retention_days", 7)
+    if retention_days > 0:
+        cleanup_old_wavs(recordings_dir, retention_days)
+
     # Check for orphaned recordings (D-05)
     orphans = find_orphan_recordings(recordings_dir)
     if orphans:
@@ -117,6 +132,7 @@ def record_command(engine, language, no_transcribe, name, extra_formats):
             size_mb = o.stat().st_size / (1024 * 1024)
             click.echo(f"  {o.name} ({size_mb:.1f} MB)")
         click.echo("These may be from a previous crashed session.")
+        click.echo("Transcribe them with: mote transcribe <file>")
         click.echo()
 
     # Detect BlackHole (D-07, D-08, D-09)
@@ -142,7 +158,6 @@ def record_command(engine, language, no_transcribe, name, extra_formats):
     if no_transcribe:
         return
 
-    cfg = load_config()
     resolved_engine = engine or cfg.get("transcription", {}).get("engine", "local")
     resolved_language = language or cfg.get("transcription", {}).get("language", "sv")
     model_config = cfg.get("transcription", {}).get("model", "kb-whisper-medium")
@@ -159,15 +174,20 @@ def record_command(engine, language, no_transcribe, name, extra_formats):
             formats.append(fmt)
     sanitized_name = _sanitize_name(name) if name else None
 
-    try:
-        _run_transcription(
-            wav_path, resolved_engine, resolved_language, model_alias,
-            api_key, output_dir, formats, sanitized_name,
-        )
-    except click.ClickException:
-        raise
-    except Exception as e:
-        raise click.ClickException(f"Transcription failed: {e}\nWAV kept at: {wav_path}")
+    while True:
+        try:
+            _run_transcription(
+                wav_path, resolved_engine, resolved_language, model_alias,
+                api_key, output_dir, formats, sanitized_name,
+            )
+            break
+        except click.ClickException:
+            raise
+        except Exception as e:
+            click.echo(f"Transcription failed: {e}")
+            click.echo(f"WAV kept at: {wav_path}")
+            if not click.confirm("Retry transcription?", default=True):
+                raise click.ClickException(f"Transcription failed. WAV kept at: {wav_path}")
 
 
 @cli.command("list")
@@ -217,6 +237,14 @@ def list_command(show_all):
 def transcribe_command(wav_file, engine, language, name, extra_formats):
     """Transcribe an existing WAV file."""
     cfg = load_config()
+    errors, warnings = validate_config(cfg)
+    for w in warnings:
+        click.echo(f"Warning: {w}")
+    if errors:
+        for e in errors:
+            click.echo(f"Error: {e}")
+        raise click.ClickException("Fix configuration errors before transcribing.")
+
     resolved_engine = engine or cfg.get("transcription", {}).get("engine", "local")
     resolved_language = language or cfg.get("transcription", {}).get("language", "sv")
     model_config = cfg.get("transcription", {}).get("model", "kb-whisper-medium")
@@ -248,16 +276,21 @@ def transcribe_command(wav_file, engine, language, name, extra_formats):
                 ):
                     raise click.ClickException("Aborted — existing files not overwritten.")
 
-    try:
-        _run_transcription(
-            wav_file, resolved_engine, resolved_language, model_alias,
-            api_key, output_dir, formats, sanitized_name,
-            delete_wav=False, timestamp=ts,
-        )
-    except click.ClickException:
-        raise
-    except Exception as e:
-        raise click.ClickException(f"Transcription failed: {e}\nWAV kept at: {wav_file}")
+    while True:
+        try:
+            _run_transcription(
+                wav_file, resolved_engine, resolved_language, model_alias,
+                api_key, output_dir, formats, sanitized_name,
+                delete_wav=False, timestamp=ts,
+            )
+            break
+        except click.ClickException:
+            raise
+        except Exception as e:
+            click.echo(f"Transcription failed: {e}")
+            click.echo(f"WAV kept at: {wav_file}")
+            if not click.confirm("Retry transcription?", default=True):
+                raise click.ClickException(f"Transcription failed. WAV kept at: {wav_file}")
 
 
 # ---------------------------------------------------------------------------

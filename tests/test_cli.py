@@ -138,7 +138,8 @@ def test_status_stale_pid(mote_home):
 def test_record_no_blackhole(mote_home):
     """mote record with no BlackHole device exits non-zero with install instructions."""
     runner = CliRunner()
-    with patch("mote.cli.find_blackhole_device", return_value=None):
+    with patch("mote.cli.find_blackhole_device", return_value=None), \
+         patch("mote.cli.validate_config", return_value=([], [])):
         result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
     assert result.exit_code != 0
     assert "BlackHole" in result.output
@@ -163,7 +164,8 @@ def test_record_stale_pid_allows_start(mote_home):
     fake_wav = mote_home / "recordings" / "mote_20260327_000000.wav"
     runner = CliRunner()
     with patch("mote.cli.find_blackhole_device", return_value=fake_device), \
-         patch("mote.cli.record_session", return_value=fake_wav) as mock_rec:
+         patch("mote.cli.record_session", return_value=fake_wav) as mock_rec, \
+         patch("mote.cli.validate_config", return_value=([], [])):
         result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
     # Stale PID warning should be shown
     assert "stale" in result.output.lower() or "dead" in result.output.lower()
@@ -189,7 +191,8 @@ def test_record_orphan_warning(mote_home):
     fake_wav = recordings_dir / "mote_20260327_000000.wav"
     runner = CliRunner()
     with patch("mote.cli.find_blackhole_device", return_value=fake_device), \
-         patch("mote.cli.record_session", return_value=fake_wav):
+         patch("mote.cli.record_session", return_value=fake_wav), \
+         patch("mote.cli.validate_config", return_value=([], [])):
         result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
     # Orphan warning should mention the WAV file or use "Found" / "orphan"
     combined = result.output.lower()
@@ -212,6 +215,7 @@ def test_record_auto_transcribes(mote_home):
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
          patch("mote.cli.get_wav_duration", return_value=60.0), \
          patch("mote.cli.transcribe_file", return_value="hello world") as mock_tx, \
          patch("mote.cli.write_transcript", return_value=fake_written):
@@ -235,6 +239,7 @@ def test_record_engine_flag(mote_home):
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
          patch("mote.cli.get_wav_duration", return_value=30.0), \
          patch("mote.cli.transcribe_file", return_value="hej världen") as mock_tx, \
          patch("mote.cli.write_transcript", return_value=fake_written):
@@ -256,6 +261,7 @@ def test_record_language_flag(mote_home):
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
          patch("mote.cli.get_wav_duration", return_value=30.0), \
          patch("mote.cli.transcribe_file", return_value="hello world") as mock_tx, \
          patch("mote.cli.write_transcript", return_value=fake_written):
@@ -275,6 +281,7 @@ def test_record_no_transcribe_flag(mote_home):
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
          patch("mote.cli.transcribe_file") as mock_tx:
         result = runner.invoke(cli, ["record", "--no-transcribe"],
                                env={"MOTE_HOME": str(mote_home)})
@@ -293,6 +300,7 @@ def test_record_deletes_wav_on_success(mote_home):
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
          patch("mote.cli.get_wav_duration", return_value=90.0), \
          patch("mote.cli.transcribe_file", return_value="transcript text"), \
          patch("mote.cli.write_transcript", return_value=fake_written):
@@ -309,9 +317,11 @@ def test_record_keeps_wav_on_failure(mote_home):
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
          patch("mote.cli.get_wav_duration", return_value=45.0), \
          patch("mote.cli.transcribe_file", side_effect=Exception("network error")):
-        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
+        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)},
+                               input="n\n")
 
     assert result.exit_code != 0
     assert wav.exists()
@@ -338,6 +348,7 @@ def test_record_writes_output_files(mote_home):
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
          patch("mote.cli.get_wav_duration", return_value=322.0), \
          patch("mote.cli.transcribe_file", return_value="hello world"), \
          patch("mote.cli.write_transcript", return_value=[md_file, txt_file]) as mock_write:
@@ -362,6 +373,7 @@ def test_record_name_flag(mote_home):
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
          patch("mote.cli.get_wav_duration", return_value=60.0), \
          patch("mote.cli.transcribe_file", return_value="hello world"), \
          patch("mote.cli.write_transcript", return_value=[named_file]) as mock_write:
@@ -388,6 +400,7 @@ def test_record_deletes_wav_after_write(mote_home):
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
          patch("mote.cli.get_wav_duration", return_value=90.0), \
          patch("mote.cli.transcribe_file", return_value="transcript text"), \
          patch("mote.cli.write_transcript", return_value=[fake_file]):
@@ -404,10 +417,12 @@ def test_record_keeps_wav_on_write_failure(mote_home):
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
          patch("mote.cli.get_wav_duration", return_value=60.0), \
          patch("mote.cli.transcribe_file", return_value="hello world"), \
          patch("mote.cli.write_transcript", side_effect=OSError("disk full")):
-        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)})
+        result = runner.invoke(cli, ["record"], env={"MOTE_HOME": str(mote_home)},
+                               input="n\n")
 
     assert result.exit_code != 0 or "WAV kept at" in result.output
     assert wav.exists(), "WAV must be kept when write_transcript raises"
@@ -545,6 +560,7 @@ def test_record_with_output_format_json(mote_home):
 
     with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
          patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
          patch("mote.cli.get_wav_duration", return_value=60.0), \
          patch("mote.cli.transcribe_file", return_value="transcript"), \
          patch("mote.cli.write_transcript", return_value=fake_written) as mock_write:
@@ -572,7 +588,8 @@ def test_transcribe_command(mote_home, tmp_path):
     out_dir = mote_home / "transcripts"
     fake_written = [out_dir / "2026-01-01_0000.md"]
 
-    with patch("mote.cli.get_wav_duration", return_value=60.0), \
+    with patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
          patch("mote.cli.transcribe_file", return_value="hej världen"), \
          patch("mote.cli.write_transcript", return_value=fake_written) as mock_write:
         result = runner.invoke(
@@ -592,7 +609,8 @@ def test_transcribe_flags(mote_home, tmp_path):
     out_dir = mote_home / "transcripts"
     fake_written = [out_dir / "2026-01-01_0000_standup.md"]
 
-    with patch("mote.cli.get_wav_duration", return_value=30.0), \
+    with patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=30.0), \
          patch("mote.cli.transcribe_file", return_value="text") as mock_tx, \
          patch("mote.cli.write_transcript", return_value=fake_written) as mock_write:
         result = runner.invoke(
@@ -616,7 +634,8 @@ def test_transcribe_output_format_json(mote_home, tmp_path):
     out_dir = mote_home / "transcripts"
     fake_written = [out_dir / "2026-01-01_0000.md", out_dir / "2026-01-01_0000.json"]
 
-    with patch("mote.cli.get_wav_duration", return_value=60.0), \
+    with patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
          patch("mote.cli.transcribe_file", return_value="text"), \
          patch("mote.cli.write_transcript", return_value=fake_written) as mock_write:
         result = runner.invoke(
@@ -657,7 +676,8 @@ def test_transcribe_overwrite_prompt(mote_home, tmp_path):
         "transcription": {"engine": "local", "language": "sv", "model": "kb-whisper-medium"},
         "output": {"dir": str(out_dir), "format": ["markdown"]},
         "api_keys": {},
-    }), patch("mote.cli.get_wav_duration", return_value=60.0), \
+    }), patch("mote.cli.validate_config", return_value=([], [])), \
+       patch("mote.cli.get_wav_duration", return_value=60.0), \
        patch("mote.cli.transcribe_file", return_value="text"), \
        patch("mote.cli.write_transcript", return_value=[existing_file]):
         result = runner.invoke(
@@ -687,7 +707,8 @@ def test_transcribe_uses_wav_mtime(mote_home, tmp_path):
         "transcription": {"engine": "local", "language": "sv", "model": "kb-whisper-medium"},
         "output": {"dir": str(out_dir), "format": ["markdown"]},
         "api_keys": {},
-    }), patch("mote.cli.get_wav_duration", return_value=60.0), \
+    }), patch("mote.cli.validate_config", return_value=([], [])), \
+       patch("mote.cli.get_wav_duration", return_value=60.0), \
        patch("mote.cli.transcribe_file", return_value="text"), \
        patch("mote.cli.write_transcript", return_value=fake_written) as mock_write:
         result = runner.invoke(
