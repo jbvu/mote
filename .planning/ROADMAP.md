@@ -21,7 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Output and Transcript Management** - Formatted output files and transcript listing (completed 2026-03-28)
 - [x] **Phase 6: CLI Polish and Config Reliability** - Config validation, JSON output, transcribe-from-file, retry and orphan flows (completed 2026-03-29)
 - [x] **Phase 7: Audio Improvements** - Silence detection warning and auto-switch BlackHole routing (completed 2026-03-29)
-- [ ] **Phase 8: Google Drive Integration** - OAuth2 auth flow and automatic Drive upload after transcription
+- [x] **Phase 8: Google Drive Integration** - OAuth2 auth flow and automatic Drive upload after transcription (completed 2026-03-29)
 - [ ] **Phase 9: NotebookLM Integration** - Experimental upload via unofficial notebooklm-py API
 
 ## Phase Details
@@ -143,11 +143,11 @@ Plans:
   2. After transcription completes, the transcript is automatically uploaded to the configured Google Drive folder
   3. A Drive upload failure is reported as a warning and does not mark the transcription as failed — local files are always written first
   4. User can set `--destination drive` per-run or configure drive as the default destination in config
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 08-01-PLAN.md — Drive module (drive.py), config [destinations] section, Google deps
-- [ ] 08-02-PLAN.md — CLI commands: auth google, upload, --destination flag, _run_transcription wiring
+- [x] 08-02-PLAN.md — CLI commands: auth google, upload, --destination flag, _run_transcription wiring
 
 ### Phase 9: NotebookLM Integration
 **Goal**: Users who want automated NotebookLM delivery have a best-effort path, with clear expectations that it is experimental and may require periodic re-authentication
@@ -174,5 +174,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 5. Output and Transcript Management | 2/2 | Complete   | 2026-03-28 |
 | 6. CLI Polish and Config Reliability | 3/3 | Complete   | 2026-03-29 |
 | 7. Audio Improvements | 2/2 | Complete   | 2026-03-29 |
-| 8. Google Drive Integration | 1/2 | In Progress|  |
+| 8. Google Drive Integration | 2/2 | Complete   | 2026-03-29 |
 | 9. NotebookLM Integration | 0/? | Not started | - |
