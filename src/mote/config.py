@@ -49,14 +49,26 @@ def set_config_value(key: str, value: str) -> None:
     with path.open() as f:
         doc = tomlkit.load(f)
     parts = key.split(".")
-    if len(parts) != 2:
-        raise ValueError(f"Key must be in 'section.key' format, got: {key}")
-    section, field = parts
-    if section not in doc:
-        raise KeyError(f"Unknown config section: {section}")
-    if field not in doc[section]:
-        raise KeyError(f"Unknown config key: {key}")
-    doc[section][field] = value
+    if len(parts) == 2:
+        section, field = parts
+        if section not in doc:
+            raise KeyError(f"Unknown config section: {section}")
+        if field not in doc[section]:
+            raise KeyError(f"Unknown config key: {key}")
+        doc[section][field] = value
+    elif len(parts) == 3:
+        section, subsection, field = parts
+        if section not in doc:
+            raise KeyError(f"Unknown config section: {section}")
+        if subsection not in doc[section]:
+            raise KeyError(f"Unknown config subsection: {section}.{subsection}")
+        if field not in doc[section][subsection]:
+            raise KeyError(f"Unknown config key: {key}")
+        doc[section][subsection][field] = value
+    else:
+        raise ValueError(
+            f"Key must be in 'section.key' or 'section.subsection.key' format, got: {key}"
+        )
     path.write_text(tomlkit.dumps(doc))
     path.chmod(0o600)
 
@@ -157,6 +169,16 @@ def _write_default_config(path: Path) -> None:
     cleanup_table.add(tomlkit.comment("Days to keep WAV files before auto-deletion (0 = keep forever)"))
     cleanup_table.add("wav_retention_days", 7)
     doc.add("cleanup", cleanup_table)
+
+    destinations = tomlkit.table()
+    destinations.add(tomlkit.comment("Active destinations: local, drive"))
+    destinations.add("active", ["local"])
+    doc.add("destinations", destinations)
+
+    destinations_drive = tomlkit.table()
+    destinations_drive.add(tomlkit.comment("Google Drive folder name for uploads"))
+    destinations_drive.add("folder_name", "Mote Transcripts")
+    destinations["drive"] = destinations_drive
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(tomlkit.dumps(doc))
