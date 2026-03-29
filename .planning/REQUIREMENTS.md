@@ -64,8 +64,8 @@
 
 - [ ] **CLI-07**: User can transcribe an existing WAV file via `mote transcribe <file>` with same engine/language flags as `mote record`
 - [ ] **CLI-08**: On transcription failure, user is prompted to retry with kept WAV; orphaned WAVs detected on next `mote record` and offered for transcription
-- [ ] **REL-01**: Config is validated on startup — invalid engine names, missing models, malformed paths caught early; absent v2 keys in v1 configs get silent defaults
-- [ ] **INT-02**: User can get JSON output format alongside Markdown and plain text
+- [x] **REL-01**: Config is validated on startup — invalid engine names, missing models, malformed paths caught early; absent v2 keys in v1 configs get silent defaults
+- [x] **INT-02**: User can get JSON output format alongside Markdown and plain text
 
 ### Audio
 
@@ -152,8 +152,8 @@
 | OUT-03 | Phase 5 | Complete |
 | OUT-04 | Phase 5 | Complete |
 | CLI-05 | Phase 5 | Complete |
-| REL-01 | Phase 6 | Pending |
-| INT-02 | Phase 6 | Pending |
+| REL-01 | Phase 6 | Complete |
+| INT-02 | Phase 6 | Complete |
 | CLI-07 | Phase 6 | Pending |
 | CLI-08 | Phase 6 | Pending |
 | AUD-05 | Phase 7 | Pending |

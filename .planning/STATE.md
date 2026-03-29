@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 6 context gathered
-last_updated: "2026-03-29T11:22:06.732Z"
-last_activity: 2026-03-28
+status: executing
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-03-29T11:42:39.261Z"
+last_activity: 2026-03-29
 progress:
   total_phases: 9
   completed_phases: 5
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 13
+  completed_plans: 11
   percent: 0
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 ## Current Position
 
-Phase: 06
-Plan: Not started
-Status: Roadmap created — ready to plan Phase 6
-Last activity: 2026-03-28
+Phase: 06 (cli-polish-and-config-reliability) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-03-29
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -61,6 +61,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 04-transcription-engine P02 | 420 | 2 tasks | 2 files |
 | Phase 05 P01 | 126 | 1 tasks | 2 files |
 | Phase 05 P02 | 10 | 2 tasks | 2 files |
+| Phase 06 P01 | 175 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,9 @@ Recent decisions affecting current work:
 - [v2.0 roadmap]: Audio recovery file: write ~/.mote/audio_restore.json before switching to BlackHole; try/finally alone is insufficient for SIGKILL scenarios
 - [v2.0 roadmap]: Google OAuth: always pass access_type='offline' and prompt='consent' to run_local_server(); use port=0 only (OOB flow deprecated Oct 2022)
 - [v2.0 roadmap]: NotebookLM is best-effort optional — wrap all calls in try/except; surface as warnings; Drive-first is the stable path; check notebooklm-py GitHub issues before starting Phase 9
+- [Phase 06]: validate_config() imports are at module level (not lazy) — config.py has no startup cost concern unlike transcribe.py
+- [Phase 06]: JSON output is opt-in — json not added to default config format list to avoid file clutter per D-08
+- [Phase 06]: cleanup_old_wavs() returns early if retention_days <= 0 to support keep-forever semantics
 
 ### Pending Todos
 
@@ -112,6 +116,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-29T11:22:06.724Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-cli-polish-and-config-reliability/06-CONTEXT.md
+Last session: 2026-03-29T11:42:39.255Z
+Stopped at: Completed 06-01-PLAN.md
+Resume file: None
