@@ -67,6 +67,28 @@ def config_path():
     click.echo(str(get_config_path()))
 
 
+@config.command("validate")
+def config_validate():
+    """Run pre-flight configuration checks."""
+    cfg = load_config()
+    errors, warnings = validate_config(cfg)
+
+    for w in warnings:
+        click.echo(f"Warning: {w}")
+    for e in errors:
+        click.echo(f"Error: {e}")
+
+    if errors:
+        raise click.ClickException(
+            f"Found {len(errors)} error(s). Fix before recording."
+        )
+
+    if warnings:
+        click.echo(f"\nConfiguration OK ({len(warnings)} warning(s)).")
+    else:
+        click.echo("Configuration OK.")
+
+
 @cli.command("status")
 def status_command():
     """Show whether a recording is in progress or idle."""
@@ -223,6 +245,28 @@ def list_command(show_all):
             r["engine"],
         )
     console.print(table)
+
+
+@cli.command("cleanup")
+def cleanup_command():
+    """Delete expired WAV recordings older than retention period."""
+    cfg = load_config()
+    retention_days = cfg.get("cleanup", {}).get("wav_retention_days", 7)
+
+    if retention_days <= 0:
+        click.echo("WAV retention disabled (wav_retention_days = 0). No files deleted.")
+        return
+
+    config_dir = get_config_dir()
+    recordings_dir = config_dir / "recordings"
+    deleted = cleanup_old_wavs(recordings_dir, retention_days)
+
+    if deleted:
+        click.echo(f"Deleted {len(deleted)} expired WAV file(s):")
+        for d in deleted:
+            click.echo(f"  {d.name}")
+    else:
+        click.echo("No expired WAV files found.")
 
 
 @cli.command("transcribe")
