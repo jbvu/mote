@@ -998,3 +998,129 @@ def test_cleanup_command_retention_zero(mote_home):
     result = runner.invoke(cli, ["cleanup"], env={"MOTE_HOME": str(mote_home)})
     assert result.exit_code == 0, result.output
     assert "retention disabled" in result.output.lower() or "disabled" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# Plan 07-02, Task 1: SwitchAudioSource helpers and audio_restore.json lifecycle
+# ---------------------------------------------------------------------------
+
+
+def test_detect_switch_audio_source_found():
+    """_detect_switch_audio_source returns True when shutil.which finds SwitchAudioSource."""
+    from mote.cli import _detect_switch_audio_source
+    with patch("mote.cli.shutil.which", return_value="/usr/local/bin/SwitchAudioSource"):
+        assert _detect_switch_audio_source() is True
+
+
+def test_detect_switch_audio_source_not_found():
+    """_detect_switch_audio_source returns False when shutil.which returns None."""
+    from mote.cli import _detect_switch_audio_source
+    with patch("mote.cli.shutil.which", return_value=None):
+        assert _detect_switch_audio_source() is False
+
+
+def test_get_current_output_device_returns_name():
+    """_get_current_output_device returns device name string from subprocess stdout."""
+    from mote.cli import _get_current_output_device
+    mock_result = MagicMock()
+    mock_result.stdout = "MacBook Pro Speakers\n"
+    with patch("mote.cli.subprocess.run", return_value=mock_result):
+        assert _get_current_output_device() == "MacBook Pro Speakers"
+
+
+def test_get_current_output_device_timeout():
+    """_get_current_output_device returns None on subprocess timeout."""
+    import subprocess
+    from mote.cli import _get_current_output_device
+    with patch("mote.cli.subprocess.run", side_effect=subprocess.TimeoutExpired("SwitchAudioSource", 5)):
+        assert _get_current_output_device() is None
+
+
+def test_get_current_output_device_empty_stdout():
+    """_get_current_output_device returns None on empty stdout."""
+    from mote.cli import _get_current_output_device
+    mock_result = MagicMock()
+    mock_result.stdout = "   "
+    with patch("mote.cli.subprocess.run", return_value=mock_result):
+        assert _get_current_output_device() is None
+
+
+def test_set_output_device_success():
+    """_set_output_device returns True when subprocess returns returncode 0."""
+    from mote.cli import _set_output_device
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    with patch("mote.cli.subprocess.run", return_value=mock_result):
+        assert _set_output_device("MacBook Pro Speakers") is True
+
+
+def test_set_output_device_failure():
+    """_set_output_device returns False when subprocess returns non-zero returncode."""
+    from mote.cli import _set_output_device
+    mock_result = MagicMock()
+    mock_result.returncode = 1
+    with patch("mote.cli.subprocess.run", return_value=mock_result):
+        assert _set_output_device("Unknown Device") is False
+
+
+def test_set_output_device_timeout():
+    """_set_output_device returns False on subprocess timeout."""
+    import subprocess
+    from mote.cli import _set_output_device
+    with patch("mote.cli.subprocess.run", side_effect=subprocess.TimeoutExpired("SwitchAudioSource", 5)):
+        assert _set_output_device("MacBook Pro Speakers") is False
+
+
+def test_write_audio_restore_creates_json(tmp_path):
+    """_write_audio_restore creates JSON file with device name."""
+    from mote.cli import _write_audio_restore, AUDIO_RESTORE_FILE
+    import json
+    _write_audio_restore(tmp_path, "MacBook Pro Speakers")
+    restore_path = tmp_path / AUDIO_RESTORE_FILE
+    assert restore_path.exists()
+    data = json.loads(restore_path.read_text())
+    assert data == {"device": "MacBook Pro Speakers"}
+
+
+def test_read_audio_restore_returns_device(tmp_path):
+    """_read_audio_restore returns device name from existing JSON file."""
+    from mote.cli import _read_audio_restore, AUDIO_RESTORE_FILE
+    (tmp_path / AUDIO_RESTORE_FILE).write_text('{"device": "MacBook Pro Speakers"}')
+    assert _read_audio_restore(tmp_path) == "MacBook Pro Speakers"
+
+
+def test_read_audio_restore_missing_file(tmp_path):
+    """_read_audio_restore returns None when file does not exist."""
+    from mote.cli import _read_audio_restore
+    assert _read_audio_restore(tmp_path) is None
+
+
+def test_read_audio_restore_malformed_json(tmp_path):
+    """_read_audio_restore returns None on malformed JSON."""
+    from mote.cli import _read_audio_restore, AUDIO_RESTORE_FILE
+    (tmp_path / AUDIO_RESTORE_FILE).write_text("not json at all {{{")
+    assert _read_audio_restore(tmp_path) is None
+
+
+def test_delete_audio_restore_removes_file(tmp_path):
+    """_delete_audio_restore removes file when it exists."""
+    from mote.cli import _delete_audio_restore, AUDIO_RESTORE_FILE
+    restore_path = tmp_path / AUDIO_RESTORE_FILE
+    restore_path.write_text('{"device": "Test"}')
+    _delete_audio_restore(tmp_path)
+    assert not restore_path.exists()
+
+
+def test_delete_audio_restore_no_error_if_missing(tmp_path):
+    """_delete_audio_restore does not raise when file is missing."""
+    from mote.cli import _delete_audio_restore
+    _delete_audio_restore(tmp_path)  # Should not raise
+
+
+def test_write_read_delete_audio_restore_cycle(tmp_path):
+    """Full lifecycle: write -> read -> delete -> read returns None."""
+    from mote.cli import _write_audio_restore, _read_audio_restore, _delete_audio_restore
+    _write_audio_restore(tmp_path, "MacBook Pro Speakers")
+    assert _read_audio_restore(tmp_path) == "MacBook Pro Speakers"
+    _delete_audio_restore(tmp_path)
+    assert _read_audio_restore(tmp_path) is None
