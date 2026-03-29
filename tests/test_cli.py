@@ -1345,3 +1345,289 @@ def test_audio_group_help():
     result = runner.invoke(cli, ["audio", "--help"])
     assert result.exit_code == 0
     assert "Audio device management" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Plan 08-02, Task 1: auth google, upload command, --destination flag
+# ---------------------------------------------------------------------------
+
+
+def test_auth_google_first_time(mote_home):
+    """mote auth google with no existing token calls run_auth_flow and prints success."""
+    runner = CliRunner()
+    mock_creds = MagicMock()
+    mock_creds.token = "fake_token"
+
+    with patch("mote.drive.get_credentials", return_value=None), \
+         patch("mote.drive.run_auth_flow", return_value=mock_creds) as mock_flow, \
+         patch("mote.drive.get_token_path", return_value=mote_home / "google_token.json"):
+        result = runner.invoke(cli, ["auth", "google"], env={"MOTE_HOME": str(mote_home)})
+
+    assert result.exit_code == 0, result.output
+    mock_flow.assert_called_once()
+    assert "Authenticated" in result.output
+
+
+def test_auth_google_already_authed_decline(mote_home):
+    """mote auth google with valid token shows status; declining re-auth does not call run_auth_flow."""
+    runner = CliRunner()
+    mock_creds = MagicMock()
+
+    with patch("mote.drive.get_credentials", return_value=mock_creds), \
+         patch("mote.drive.run_auth_flow") as mock_flow, \
+         patch("mote.drive.get_token_path", return_value=mote_home / "google_token.json"):
+        result = runner.invoke(
+            cli, ["auth", "google"],
+            env={"MOTE_HOME": str(mote_home)},
+            input="n\n",  # decline re-auth
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_flow.assert_not_called()
+    # Should show status
+    assert "Google Drive" in result.output or "Authenticated" in result.output
+
+
+def test_auth_google_already_authed_accept(mote_home):
+    """mote auth google with valid token, accepting re-auth, calls run_auth_flow."""
+    runner = CliRunner()
+    mock_creds = MagicMock()
+    new_creds = MagicMock()
+
+    with patch("mote.drive.get_credentials", return_value=mock_creds), \
+         patch("mote.drive.run_auth_flow", return_value=new_creds) as mock_flow, \
+         patch("mote.drive.get_token_path", return_value=mote_home / "google_token.json"):
+        result = runner.invoke(
+            cli, ["auth", "google"],
+            env={"MOTE_HOME": str(mote_home)},
+            input="y\n",  # accept re-auth
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_flow.assert_called_once()
+
+
+def test_upload_command_with_file(mote_home, tmp_path):
+    """mote upload <file> calls upload_transcripts with that file and configured folder_name."""
+    transcript_file = tmp_path / "transcript.md"
+    transcript_file.write_text("# Transcript\nhello world", encoding="utf-8")
+
+    runner = CliRunner()
+    with patch("mote.drive.upload_transcripts") as mock_upload, \
+         patch("mote.cli.load_config", return_value={
+             "destinations": {"drive": {"folder_name": "Mote Transcripts"}, "active": ["local"]},
+             "output": {"dir": str(tmp_path), "format": ["markdown"]},
+         }):
+        result = runner.invoke(
+            cli, ["upload", str(transcript_file)],
+            env={"MOTE_HOME": str(mote_home)},
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_upload.assert_called_once()
+    assert "Uploaded" in result.output
+
+
+def test_upload_command_not_authed(mote_home, tmp_path):
+    """mote upload raises ClickException when upload_transcripts raises RuntimeError (not authenticated)."""
+    transcript_file = tmp_path / "transcript.md"
+    transcript_file.write_text("# Transcript", encoding="utf-8")
+
+    runner = CliRunner()
+    with patch("mote.drive.upload_transcripts", side_effect=RuntimeError("Not authenticated with Google Drive. Run: mote auth google")), \
+         patch("mote.cli.load_config", return_value={
+             "destinations": {"drive": {"folder_name": "Mote Transcripts"}, "active": ["local"]},
+             "output": {"dir": str(tmp_path), "format": ["markdown"]},
+         }):
+        result = runner.invoke(
+            cli, ["upload", str(transcript_file)],
+            env={"MOTE_HOME": str(mote_home)},
+        )
+
+    assert result.exit_code != 0
+    assert "mote auth google" in result.output or "Not authenticated" in result.output
+
+
+def test_upload_command_no_args(mote_home):
+    """mote upload without file or --last shows error."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["upload"], env={"MOTE_HOME": str(mote_home)})
+    assert result.exit_code != 0
+
+
+def test_destination_flag_drive_triggers_upload(mote_home):
+    """mote record --destination drive calls upload_transcripts after transcription."""
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="hello world"), \
+         patch("mote.cli.write_transcript", return_value=fake_written), \
+         patch("mote.drive.upload_transcripts") as mock_upload, \
+         patch("mote.cli.load_config", return_value={
+             "transcription": {"engine": "local", "language": "sv", "model": "kb-whisper-medium"},
+             "output": {"dir": str(out_dir), "format": ["markdown"]},
+             "api_keys": {},
+             "cleanup": {"wav_retention_days": 7},
+             "destinations": {"active": ["local"], "drive": {"folder_name": "Mote Transcripts"}},
+         }):
+        result = runner.invoke(
+            cli, ["record", "--destination", "drive"],
+            env={"MOTE_HOME": str(mote_home)},
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_upload.assert_called_once()
+
+
+def test_destination_local_only_no_upload(mote_home):
+    """mote record --destination local does not call upload_transcripts even when config has drive active."""
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="hello world"), \
+         patch("mote.cli.write_transcript", return_value=fake_written), \
+         patch("mote.drive.upload_transcripts") as mock_upload, \
+         patch("mote.cli.load_config", return_value={
+             "transcription": {"engine": "local", "language": "sv", "model": "kb-whisper-medium"},
+             "output": {"dir": str(out_dir), "format": ["markdown"]},
+             "api_keys": {},
+             "cleanup": {"wav_retention_days": 7},
+             "destinations": {"active": ["local", "drive"], "drive": {"folder_name": "Mote Transcripts"}},
+         }):
+        result = runner.invoke(
+            cli, ["record", "--destination", "local"],
+            env={"MOTE_HOME": str(mote_home)},
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_upload.assert_not_called()
+
+
+def test_drive_upload_failure_is_warning(mote_home, tmp_path):
+    """_run_transcription with drive destination catches upload exception and prints warning."""
+    from mote.cli import _run_transcription
+
+    wav = _make_test_wav(tmp_path / "test.wav")
+    out_dir = tmp_path / "out"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    with patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="hello world"), \
+         patch("mote.cli.write_transcript", return_value=fake_written), \
+         patch("mote.drive.upload_transcripts", side_effect=Exception("network error")):
+        import click
+        from click.testing import CliRunner as _Runner
+
+        @click.command()
+        def _test_cmd():
+            _run_transcription(
+                wav, "local", "sv", "medium", None, out_dir, ["markdown"], None,
+                destinations=["local", "drive"],
+                config_dir=tmp_path,
+                cfg={"destinations": {"drive": {"folder_name": "Mote Transcripts"}}},
+            )
+
+        result = _Runner().invoke(_test_cmd, [])
+
+    assert result.exit_code == 0, result.output
+    assert "Warning: Drive upload failed" in result.output
+    assert "mote upload" in result.output
+
+
+def test_drive_upload_no_upload_without_drive_destination(mote_home, tmp_path):
+    """_run_transcription without drive in destinations does not call upload_transcripts."""
+    from mote.cli import _run_transcription
+
+    wav = _make_test_wav(tmp_path / "test.wav")
+    out_dir = tmp_path / "out"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    with patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="hello world"), \
+         patch("mote.cli.write_transcript", return_value=fake_written), \
+         patch("mote.drive.upload_transcripts") as mock_upload:
+        import click
+        from click.testing import CliRunner as _Runner
+
+        @click.command()
+        def _test_cmd():
+            _run_transcription(
+                wav, "local", "sv", "medium", None, out_dir, ["markdown"], None,
+                destinations=["local"],
+            )
+
+        _Runner().invoke(_test_cmd, [])
+
+    mock_upload.assert_not_called()
+
+
+def test_transcribe_destination_flag_drive(mote_home, tmp_path):
+    """mote transcribe <wav> --destination drive triggers Drive upload."""
+    runner = CliRunner()
+    wav = _make_test_wav(tmp_path / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    with patch("mote.cli.validate_config", return_value=([], [])), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="hej världen"), \
+         patch("mote.cli.write_transcript", return_value=fake_written), \
+         patch("mote.drive.upload_transcripts") as mock_upload, \
+         patch("mote.cli.load_config", return_value={
+             "transcription": {"engine": "local", "language": "sv", "model": "kb-whisper-medium"},
+             "output": {"dir": str(out_dir), "format": ["markdown"]},
+             "api_keys": {},
+             "destinations": {"active": ["local"], "drive": {"folder_name": "Mote Transcripts"}},
+         }):
+        result = runner.invoke(
+            cli, ["transcribe", str(wav), "--destination", "drive"],
+            env={"MOTE_HOME": str(mote_home)},
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_upload.assert_called_once()
+
+
+def test_record_help_shows_destination_flag(mote_home):
+    """mote record --help shows --destination option."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["record", "--help"])
+    assert result.exit_code == 0
+    assert "--destination" in result.output
+
+
+def test_transcribe_help_shows_destination_flag(mote_home):
+    """mote transcribe --help shows --destination option."""
+    runner = CliRunner()
+    wav_path = "/tmp/fake.wav"
+    result = runner.invoke(cli, ["transcribe", "--help"])
+    assert result.exit_code == 0
+    assert "--destination" in result.output
+
+
+def test_auth_group_help():
+    """mote auth --help shows 'Manage third-party service authentication'."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["auth", "--help"])
+    assert result.exit_code == 0
+    assert "Manage" in result.output or "authentication" in result.output.lower()
+
+
+def test_upload_command_help():
+    """mote upload --help exits 0 and mentions --last."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["upload", "--help"])
+    assert result.exit_code == 0
+    assert "--last" in result.output
