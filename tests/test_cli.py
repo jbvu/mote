@@ -556,3 +556,147 @@ def test_record_with_output_format_json(mote_home):
     call_args = mock_write.call_args[0]
     # formats is the 3rd positional arg (index 2)
     assert "json" in call_args[2]
+
+
+# ---------------------------------------------------------------------------
+# mote transcribe command tests (Plan 06-02, Task 2)
+# ---------------------------------------------------------------------------
+
+
+def test_transcribe_command(mote_home, tmp_path):
+    """mote transcribe <wav> produces transcript output and prints completion message."""
+    runner = CliRunner()
+    wav = _make_test_wav(tmp_path / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    with patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="hej världen"), \
+         patch("mote.cli.write_transcript", return_value=fake_written) as mock_write:
+        result = runner.invoke(
+            cli, ["transcribe", str(wav)],
+            env={"MOTE_HOME": str(mote_home)},
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_write.assert_called_once()
+    assert "Transcription complete" in result.output
+
+
+def test_transcribe_flags(mote_home, tmp_path):
+    """--engine, --language, --name flags are passed through to _run_transcription."""
+    runner = CliRunner()
+    wav = _make_test_wav(tmp_path / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000_standup.md"]
+
+    with patch("mote.cli.get_wav_duration", return_value=30.0), \
+         patch("mote.cli.transcribe_file", return_value="text") as mock_tx, \
+         patch("mote.cli.write_transcript", return_value=fake_written) as mock_write:
+        result = runner.invoke(
+            cli,
+            ["transcribe", str(wav), "--engine", "openai", "--language", "en", "--name", "standup"],
+            env={"MOTE_HOME": str(mote_home)},
+        )
+
+    assert result.exit_code == 0, result.output
+    tx_args = mock_tx.call_args[0]
+    assert tx_args[1] == "openai"
+    assert tx_args[2] == "en"
+    write_args = mock_write.call_args[0]
+    assert write_args[7] == "standup"
+
+
+def test_transcribe_output_format_json(mote_home, tmp_path):
+    """--output-format json includes 'json' in formats passed to write_transcript."""
+    runner = CliRunner()
+    wav = _make_test_wav(tmp_path / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md", out_dir / "2026-01-01_0000.json"]
+
+    with patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="text"), \
+         patch("mote.cli.write_transcript", return_value=fake_written) as mock_write:
+        result = runner.invoke(
+            cli, ["transcribe", str(wav), "--output-format", "json"],
+            env={"MOTE_HOME": str(mote_home)},
+        )
+
+    assert result.exit_code == 0, result.output
+    call_args = mock_write.call_args[0]
+    assert "json" in call_args[2]
+
+
+def test_transcribe_nonexistent_file(mote_home):
+    """mote transcribe nonexistent.wav exits with error."""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli, ["transcribe", "/tmp/does_not_exist_ever.wav"],
+        env={"MOTE_HOME": str(mote_home)},
+    )
+    assert result.exit_code != 0
+
+
+def test_transcribe_overwrite_prompt(mote_home, tmp_path):
+    """When output file exists, prompts user; answering no aborts."""
+    runner = CliRunner()
+    wav = _make_test_wav(tmp_path / "test.wav")
+    out_dir = mote_home / "transcripts"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Predict the output filename using WAV mtime
+    from datetime import datetime
+    from mote.output import _build_filename
+    ts = datetime.fromtimestamp(wav.stat().st_mtime)
+    existing_file = out_dir / _build_filename(ts, None, "md")
+    existing_file.write_text("existing content", encoding="utf-8")
+
+    with patch("mote.cli.load_config", return_value={
+        "transcription": {"engine": "local", "language": "sv", "model": "kb-whisper-medium"},
+        "output": {"dir": str(out_dir), "format": ["markdown"]},
+        "api_keys": {},
+    }), patch("mote.cli.get_wav_duration", return_value=60.0), \
+       patch("mote.cli.transcribe_file", return_value="text"), \
+       patch("mote.cli.write_transcript", return_value=[existing_file]):
+        result = runner.invoke(
+            cli, ["transcribe", str(wav)],
+            env={"MOTE_HOME": str(mote_home)},
+            input="n\n",  # answer no to overwrite prompt
+        )
+
+    assert result.exit_code != 0
+    assert "existing" in result.output.lower() or "overwrite" in result.output.lower() or "Aborted" in result.output
+
+
+def test_transcribe_uses_wav_mtime(mote_home, tmp_path):
+    """Timestamp passed to write_transcript comes from WAV file mtime, not datetime.now()."""
+    import os
+    runner = CliRunner()
+    wav = _make_test_wav(tmp_path / "test.wav")
+    # Set a known old mtime on the WAV file
+    old_mtime = 1700000000.0  # 2023-11-14
+    os.utime(wav, (old_mtime, old_mtime))
+
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2023-11-14_0933.md"]
+
+    from datetime import datetime
+    with patch("mote.cli.load_config", return_value={
+        "transcription": {"engine": "local", "language": "sv", "model": "kb-whisper-medium"},
+        "output": {"dir": str(out_dir), "format": ["markdown"]},
+        "api_keys": {},
+    }), patch("mote.cli.get_wav_duration", return_value=60.0), \
+       patch("mote.cli.transcribe_file", return_value="text"), \
+       patch("mote.cli.write_transcript", return_value=fake_written) as mock_write:
+        result = runner.invoke(
+            cli, ["transcribe", str(wav)],
+            env={"MOTE_HOME": str(mote_home)},
+        )
+
+    assert result.exit_code == 0, result.output
+    # The timestamp keyword arg passed to write_transcript should match WAV mtime
+    call_kwargs = mock_write.call_args[1]
+    ts = call_kwargs.get("timestamp")
+    assert ts is not None
+    expected_ts = datetime.fromtimestamp(old_mtime)
+    assert ts == expected_ts
