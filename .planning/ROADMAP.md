@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Model Management** - Download, list, and delete KB-Whisper models (completed 2026-03-28)
 - [x] **Phase 4: Transcription Engine** - Local KB-Whisper and OpenAI Whisper transcription (completed 2026-03-28)
 - [x] **Phase 5: Output and Transcript Management** - Formatted output files and transcript listing (completed 2026-03-28)
-- [ ] **Phase 6: CLI Polish and Config Reliability** - Config validation, JSON output, transcribe-from-file, retry and orphan flows
+- [x] **Phase 6: CLI Polish and Config Reliability** - Config validation, JSON output, transcribe-from-file, retry and orphan flows (completed 2026-03-29)
 - [ ] **Phase 7: Audio Improvements** - Silence detection warning and auto-switch BlackHole routing
 - [ ] **Phase 8: Google Drive Integration** - OAuth2 auth flow and automatic Drive upload after transcription
 - [ ] **Phase 9: NotebookLM Integration** - Experimental upload via unofficial notebooklm-py API
@@ -112,12 +112,12 @@ Plans:
   3. On `mote record` startup, any orphaned WAV files from previous failures are detected and the user is offered transcription before recording begins
   4. Starting `mote record` with an invalid engine name, missing model, or malformed config path prints a clear error and exits before recording starts
   5. `mote transcribe <file> --output-format json` produces a JSON transcript file alongside the Markdown and plain text files
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 06-01-PLAN.md — Foundation: config validation, JSON output format, WAV cleanup utility, default config update
 - [x] 06-02-PLAN.md — CLI commands: extract _run_transcription() helper, mote transcribe command, --output-format json flag
-- [ ] 06-03-PLAN.md — Reliability wiring: retry loop, validation at startup, orphan warning enhancement, config validate and cleanup commands
+- [x] 06-03-PLAN.md — Reliability wiring: retry loop, validation at startup, orphan warning enhancement, config validate and cleanup commands
 
 ### Phase 7: Audio Improvements
 **Goal**: Recording starts reliably on BlackHole without manual audio switching, and users are warned early when silence suggests the routing is wrong
@@ -165,7 +165,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 3. Model Management | 1/1 | Complete   | 2026-03-28 |
 | 4. Transcription Engine | 2/2 | Complete   | 2026-03-28 |
 | 5. Output and Transcript Management | 2/2 | Complete   | 2026-03-28 |
-| 6. CLI Polish and Config Reliability | 2/3 | In Progress|  |
+| 6. CLI Polish and Config Reliability | 3/3 | Complete   | 2026-03-29 |
 | 7. Audio Improvements | 0/? | Not started | - |
 | 8. Google Drive Integration | 0/? | Not started | - |
 | 9. NotebookLM Integration | 0/? | Not started | - |

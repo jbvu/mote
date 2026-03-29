@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-03-29T11:48:21.370Z"
+status: verifying
+stopped_at: Completed 06-03-PLAN.md
+last_updated: "2026-03-29T11:58:09.287Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 9
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 Phase: 06 (cli-polish-and-config-reliability) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-29
 
 Progress: [░░░░░░░░░░] 0%
@@ -63,6 +63,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05 P02 | 10 | 2 tasks | 2 files |
 | Phase 06 P01 | 175 | 2 tasks | 4 files |
 | Phase 06 P02 | 480 | 2 tasks | 2 files |
+| Phase 06 P03 | 447 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,9 @@ Recent decisions affecting current work:
 - [Phase 06]: _run_transcription() lives in cli.py (not a new module) because it depends on click.echo — a CLI concern
 - [Phase 06]: transcribe_command passes delete_wav=False to preserve the user's source WAV file
 - [Phase 06]: WAV mtime used as write_transcript timestamp for transcribe_command so overwrite detection is deterministic
+- [Phase 06]: validate_config() called before BlackHole detection in record_command so bad config exits cleanly without device detection overhead
+- [Phase 06]: retry loop re-raises click.ClickException before generic except Exception to avoid retrying on Click's own user-facing errors
+- [Phase 06]: mote cleanup is top-level command; mote config validate is config subcommand — matches D-05 and D-15 placement decisions
 
 ### Pending Todos
 
@@ -120,6 +124,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-29T11:48:21.364Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-03-29T11:58:09.282Z
+Stopped at: Completed 06-03-PLAN.md
 Resume file: None
