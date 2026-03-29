@@ -22,18 +22,26 @@ Accurate Swedish-language meeting transcription that actually works — no exist
 - [x] Output transcripts as Markdown and plain text — Validated in Phase 5: Output and Transcript Management
 - [x] List past transcripts via CLI — Validated in Phase 5: Output and Transcript Management
 
-### Active
+### Active (v2.0)
 
-- [ ] Capture system audio from virtual meetings via BlackHole
-- [ ] Transcribe via Mistral Voxtral API as alternative engine
-- [ ] CLI with manual start/stop recording and transcription
+- [ ] Configurable transcript destinations (Google Drive, NotebookLM) via config + flag
+- [ ] Google Drive upload via official API with OAuth2 (`mote auth google`)
+- [ ] NotebookLM upload via `notebooklm-py` (`mote auth notebooklm`)
+- [ ] `mote transcribe <file>` for existing WAV files
+- [ ] Retry failed transcriptions + orphaned WAV detection
+- [ ] Auto-switch BlackHole audio routing before/after recording
+- [ ] Silence detection warning during recording
+- [ ] Config validation on startup
+- [ ] JSON output format
+
+### Future (v3+)
+
 - [ ] Web UI dashboard with recording controls and live status
 - [ ] Web UI settings page for configuration
 - [ ] Web UI model management with download progress
 - [ ] Chrome extension for quick recording control
-- [ ] Push completed transcripts to Google Drive via API
-- [ ] TOML-based configuration with sensible defaults
-- [ ] Real-time audio level monitoring during recording
+- [ ] Mistral Voxtral engine (pending Swedish support)
+- [ ] Speaker diarization
 
 ### Out of Scope
 
@@ -94,5 +102,18 @@ This document evolves at phase transitions and milestone boundaries.
 3. Audit Out of Scope — reasons still valid?
 4. Update Context with current state
 
+## Current Milestone: v2.0 Integration & Polish
+
+**Goal:** Connect Mote to external services (Google Drive, NotebookLM) and improve the CLI experience with transcribe-from-file, retry, auto-routing, and validation.
+
+**Target features:**
+- Configurable transcript destinations (Google Drive, NotebookLM)
+- `mote transcribe <file>` for existing WAV files
+- Retry failed transcriptions + orphaned WAV detection
+- Auto-switch BlackHole audio routing
+- Silence detection warning
+- Config validation on startup
+- JSON output format
+
 ---
-*Last updated: 2026-03-28 after Phase 5 completion — output formatting (Markdown + plain text), transcript listing, 152 passing tests. All v1 milestone phases complete.*
+*Last updated: 2026-03-29 — v2.0 milestone started, 152 passing tests from v1*
