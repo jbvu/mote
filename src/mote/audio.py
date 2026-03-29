@@ -31,6 +31,10 @@ SAMPLE_RATE = 16000
 CHANNELS = 1
 BLOCKSIZE = 1024  # ~64ms per callback at 16kHz
 
+# Silence detection constants (hardcoded per D-08)
+SILENCE_THRESHOLD_DB = -50.0  # dB below which audio is "silence" (D-05)
+SILENCE_WARN_SECONDS = 30     # seconds of sustained silence before warning (D-06)
+
 
 def find_blackhole_device() -> Optional[dict]:
     """Return the preferred BlackHole input device dict, or None if not installed.
@@ -84,14 +88,16 @@ def make_level_bar(db: float, width: int = 20) -> str:
     return "█" * filled + "░" * (width - filled)
 
 
-def make_display(elapsed_s: int, db: float) -> Text:
+def make_display(elapsed_s: int, db: float, silence_warning: bool = False) -> Text:
     """Build Rich Text for the live recording display (D-01).
 
     Shows: "Recording  HH:MM:SS  {level bar}  {db}dB"
+    When silence_warning is True, appends an amber-styled warning (D-11, D-12).
 
     Args:
         elapsed_s: recording duration in seconds.
         db: current audio level in dB.
+        silence_warning: if True, append silence routing warning.
 
     Returns:
         Rich Text object with styled components.
@@ -104,6 +110,8 @@ def make_display(elapsed_s: int, db: float) -> Text:
     t.append(f"{hours:02d}:{mm:02d}:{ss:02d}", style="bold cyan")
     t.append(f"  {bar}", style="green")
     t.append(f"  {db:.0f}dB", style="dim")
+    if silence_warning:
+        t.append("  \u26a0 Silence detected \u2014 check audio routing", style="bold yellow")
     return t
 
 
