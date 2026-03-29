@@ -402,3 +402,67 @@ def test_rms_db_quiet_audio_above_threshold():
     result = rms_db(data)
     # 20 * log10(0.01) = -40 dB, which is above -50 dB threshold
     assert result > SILENCE_THRESHOLD_DB
+
+
+# ---------------------------------------------------------------------------
+# SilenceTracker
+# ---------------------------------------------------------------------------
+
+def test_silence_tracker_no_warn_before_threshold():
+    """Feed 29 seconds of silence — update() returns False."""
+    from mote.audio import SilenceTracker
+    from unittest.mock import patch
+
+    tracker = SilenceTracker()
+    # Simulate: silence starts at t=0, we call update at t=29 (just under threshold)
+    with patch("time.monotonic", side_effect=[0.0, 29.0]):
+        result1 = tracker.update(-55.0)  # below threshold, silence_start set to 0.0
+        result2 = tracker.update(-55.0)  # 29s elapsed — not yet 30s
+    assert result1 is False
+    assert result2 is False
+
+
+def test_silence_tracker_warns_at_threshold():
+    """Feed 30+ seconds of silence — update() returns True."""
+    from mote.audio import SilenceTracker
+    from unittest.mock import patch
+
+    tracker = SilenceTracker()
+    # silence_start recorded at t=0, checked at t=30
+    with patch("time.monotonic", side_effect=[0.0, 30.0]):
+        tracker.update(-55.0)  # start silence timer
+        result = tracker.update(-55.0)  # 30s elapsed — warn
+    assert result is True
+
+
+def test_silence_tracker_resets_on_audio():
+    """Feed silence, then audio above threshold, then silence — new 30s window starts."""
+    from mote.audio import SilenceTracker
+    from unittest.mock import patch
+
+    tracker = SilenceTracker()
+    # Phase 1: silence starts at t=0, checked at t=35 — warning fires
+    # Phase 2: audio resumes — resets
+    # Phase 3: silence again at t=40, checked at t=60 — NOT yet 30s from t=40 (only 20s)
+    with patch("time.monotonic", side_effect=[0.0, 35.0, 40.0, 60.0]):
+        tracker.update(-55.0)   # silence start at t=0
+        tracker.update(-55.0)   # t=35 — warns
+        tracker.update(-20.0)   # audio above threshold — reset; silence_start=None
+        result = tracker.update(-55.0)  # silence start at t=40, t=60 — 20s < 30s
+    # At t=60 silence_start was just set (at this call), so return False
+    assert result is False
+
+
+def test_silence_tracker_no_spam():
+    """Once warned, subsequent updates during same silence stretch still return True."""
+    from mote.audio import SilenceTracker
+    from unittest.mock import patch
+
+    tracker = SilenceTracker()
+    # t=0 start silence, t=31 warn, t=32 still silent
+    with patch("time.monotonic", side_effect=[0.0, 31.0, 32.0]):
+        tracker.update(-55.0)   # start silence
+        result1 = tracker.update(-55.0)  # 31s — warns
+        result2 = tracker.update(-55.0)  # 32s — still silent, should still return True
+    assert result1 is True
+    assert result2 is True
