@@ -58,7 +58,27 @@
 - [x] **SET-03**: Makefile for common operations (setup, run, test, clean)
 - [x] **SET-04**: pytest test suite with fixtures
 
-## v2 Requirements
+## v2.0 Requirements
+
+### CLI & Reliability
+
+- [ ] **CLI-07**: User can transcribe an existing WAV file via `mote transcribe <file>` with same engine/language flags as `mote record`
+- [ ] **CLI-08**: On transcription failure, user is prompted to retry with kept WAV; orphaned WAVs detected on next `mote record` and offered for transcription
+- [ ] **REL-01**: Config is validated on startup — invalid engine names, missing models, malformed paths caught early; absent v2 keys in v1 configs get silent defaults
+- [ ] **INT-02**: User can get JSON output format alongside Markdown and plain text
+
+### Audio
+
+- [ ] **AUD-05**: Audio output auto-switches to BlackHole before recording and restores original after; graceful degradation if SwitchAudioSource not installed
+- [ ] **AUD-06**: User is warned if sustained silence (>30s) detected during recording; does not stop recording
+
+### Integration
+
+- [ ] **INT-03**: User can configure transcript destinations via `[destinations]` config section and `--destination` flag
+- [ ] **INT-04**: User can upload transcripts to Google Drive via `mote auth google` (one-time OAuth2 browser consent) + automatic upload after transcription
+- [ ] **INT-05**: User can upload transcripts to NotebookLM via `mote auth notebooklm` (experimental — unofficial API via notebooklm-py, sessions expire weekly)
+
+## v3+ Requirements
 
 ### Cloud Engines
 
@@ -75,10 +95,9 @@
 - **EXT-01**: Chrome extension for one-click recording control
 - **EXT-02**: Native messaging host for extension-to-tool communication
 
-### Integration
+### Speaker Identification
 
-- **INT-01**: Push completed transcripts to Google Drive via API
-- **INT-02**: JSON output format for machine consumption
+- **SPK-01**: Speaker diarization — identify and label different speakers in transcripts
 
 ### Language
 
@@ -89,7 +108,7 @@
 | Feature | Reason |
 |---------|--------|
 | Real-time live transcription | Doubles complexity; faster-whisper optimized for batch, not streaming |
-| Speaker diarization | Poor Swedish accuracy, gated model access, 2-4x processing time |
+| Speaker diarization | Moved to v3+ (SPK-01) — Swedish accuracy and processing time concerns remain |
 | Multi-user auth for web UI | Binds to localhost; zero threat model for personal tool |
 | Auto-start on meeting detection | Fragile OS-level hooks; privacy/consent concerns |
 | Auto-download models | Large files (up to 3 GB) without consent is bad UX |
@@ -135,10 +154,10 @@
 | CLI-05 | Phase 5 | Complete |
 
 **Coverage:**
-- v1 requirements: 32 total
-- Mapped to phases: 32
-- Unmapped: 0
+- v1 requirements: 32 total, all complete
+- v2.0 requirements: 9 total, pending
+- Mapped to phases: 32 (v1), 0 (v2.0)
 
 ---
 *Requirements defined: 2026-03-27*
-*Last updated: 2026-03-27 after roadmap creation*
+*Last updated: 2026-03-29 — v2.0 milestone requirements defined*
