@@ -112,7 +112,12 @@ Plans:
   3. On `mote record` startup, any orphaned WAV files from previous failures are detected and the user is offered transcription before recording begins
   4. Starting `mote record` with an invalid engine name, missing model, or malformed config path prints a clear error and exits before recording starts
   5. `mote transcribe <file> --output-format json` produces a JSON transcript file alongside the Markdown and plain text files
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Foundation: config validation, JSON output format, WAV cleanup utility, default config update
+- [ ] 06-02-PLAN.md — CLI commands: extract _run_transcription() helper, mote transcribe command, --output-format json flag
+- [ ] 06-03-PLAN.md — Reliability wiring: retry loop, validation at startup, orphan warning enhancement, config validate and cleanup commands
 
 ### Phase 7: Audio Improvements
 **Goal**: Recording starts reliably on BlackHole without manual audio switching, and users are warned early when silence suggests the routing is wrong
@@ -160,7 +165,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 3. Model Management | 1/1 | Complete   | 2026-03-28 |
 | 4. Transcription Engine | 2/2 | Complete   | 2026-03-28 |
 | 5. Output and Transcript Management | 2/2 | Complete   | 2026-03-28 |
-| 6. CLI Polish and Config Reliability | 0/? | Not started | - |
+| 6. CLI Polish and Config Reliability | 0/3 | Planned | - |
 | 7. Audio Improvements | 0/? | Not started | - |
 | 8. Google Drive Integration | 0/? | Not started | - |
 | 9. NotebookLM Integration | 0/? | Not started | - |
