@@ -22,7 +22,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: CLI Polish and Config Reliability** - Config validation, JSON output, transcribe-from-file, retry and orphan flows (completed 2026-03-29)
 - [x] **Phase 7: Audio Improvements** - Silence detection warning and auto-switch BlackHole routing (completed 2026-03-29)
 - [x] **Phase 8: Google Drive Integration** - OAuth2 auth flow and automatic Drive upload after transcription (completed 2026-03-29)
-- [ ] **Phase 9: NotebookLM Integration** - Experimental upload via unofficial notebooklm-py API
+- [x] **Phase 9: NotebookLM Integration** - Experimental upload via unofficial notebooklm-py API (completed 2026-03-29)
 
 ## Phase Details
 
@@ -158,11 +158,11 @@ Plans:
   2. After transcription, if the notebooklm destination is configured, the transcript is uploaded to NotebookLM as a new source
   3. When the NotebookLM session expires (typically weekly), the user sees a clear re-auth message rather than a silent failure
   4. A NotebookLM upload failure never propagates as a transcription failure — local files and Drive upload are unaffected
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 09-01-PLAN.md — NotebookLM module (notebooklm.py), config extension, pyproject.toml update, unit tests
-- [ ] 09-02-PLAN.md — CLI wiring: auth notebooklm command, _run_transcription upload block, --destination notebooklm
+- [x] 09-02-PLAN.md — CLI wiring: auth notebooklm command, _run_transcription upload block, --destination notebooklm
 
 ## Progress
 
@@ -179,4 +179,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 6. CLI Polish and Config Reliability | 3/3 | Complete   | 2026-03-29 |
 | 7. Audio Improvements | 2/2 | Complete   | 2026-03-29 |
 | 8. Google Drive Integration | 2/2 | Complete   | 2026-03-29 |
-| 9. NotebookLM Integration | 1/2 | In Progress|  |
+| 9. NotebookLM Integration | 2/2 | Complete   | 2026-03-29 |
