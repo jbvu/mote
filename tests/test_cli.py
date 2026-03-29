@@ -483,3 +483,76 @@ def test_list_command_all_flag(mote_home):
 
     assert all_count == 25, f"Expected 25 rows in --all output, got {all_count}"
     assert limited_count == 20, f"Expected 20 rows in limited output, got {limited_count}"
+
+
+# ---------------------------------------------------------------------------
+# _run_transcription() helper tests (Plan 06-02, Task 1)
+# ---------------------------------------------------------------------------
+
+
+def test_run_transcription_calls_pipeline(mote_home, tmp_path):
+    """_run_transcription calls get_wav_duration, transcribe_file, write_transcript, wav.unlink in order."""
+    from mote.cli import _run_transcription
+
+    wav = _make_test_wav(tmp_path / "test.wav")
+    out_dir = tmp_path / "out"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    with patch("mote.cli.get_wav_duration", return_value=60.0) as mock_dur, \
+         patch("mote.cli.transcribe_file", return_value="hello world") as mock_tx, \
+         patch("mote.cli.write_transcript", return_value=fake_written) as mock_write:
+        result_paths = _run_transcription(
+            wav, "local", "sv", "medium", None, out_dir, ["markdown"], None,
+        )
+
+    mock_dur.assert_called_once_with(wav)
+    mock_tx.assert_called_once_with(wav, "local", "sv", "medium", None)
+    mock_write.assert_called_once()
+    # WAV should be deleted (delete_wav=True by default)
+    assert not wav.exists()
+    assert result_paths == fake_written
+
+
+def test_run_transcription_passes_formats(mote_home, tmp_path):
+    """_run_transcription passes the formats list to write_transcript."""
+    from mote.cli import _run_transcription
+
+    wav = _make_test_wav(tmp_path / "test.wav")
+    out_dir = tmp_path / "out"
+    fake_written = [out_dir / "2026-01-01_0000.md", out_dir / "2026-01-01_0000.json"]
+
+    with patch("mote.cli.get_wav_duration", return_value=30.0), \
+         patch("mote.cli.transcribe_file", return_value="transcript"), \
+         patch("mote.cli.write_transcript", return_value=fake_written) as mock_write:
+        _run_transcription(
+            wav, "local", "sv", "medium", None, out_dir, ["markdown", "json"], None,
+        )
+
+    call_args = mock_write.call_args[0]
+    # formats is the 3rd positional arg (index 2)
+    assert "json" in call_args[2]
+    assert "markdown" in call_args[2]
+
+
+def test_record_with_output_format_json(mote_home):
+    """mote record --output-format json includes 'json' in formats passed to write_transcript."""
+    runner = CliRunner()
+    wav = _make_test_wav(mote_home / "recordings" / "test.wav")
+    out_dir = mote_home / "transcripts"
+    fake_written = [out_dir / "2026-01-01_0000.md"]
+
+    with patch("mote.cli.find_blackhole_device", return_value={"name": "BH", "index": 0}), \
+         patch("mote.cli.record_session", return_value=wav), \
+         patch("mote.cli.get_wav_duration", return_value=60.0), \
+         patch("mote.cli.transcribe_file", return_value="transcript"), \
+         patch("mote.cli.write_transcript", return_value=fake_written) as mock_write:
+        result = runner.invoke(
+            cli, ["record", "--output-format", "json"],
+            env={"MOTE_HOME": str(mote_home)},
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_write.assert_called_once()
+    call_args = mock_write.call_args[0]
+    # formats is the 3rd positional arg (index 2)
+    assert "json" in call_args[2]
