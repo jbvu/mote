@@ -177,7 +177,7 @@ def status_command():
 @click.option("--output-format", "extra_formats", multiple=True,
               type=click.Choice(["json"]), help="Additional output formats.")
 @click.option("--destination", "destinations_override", multiple=True,
-              type=click.Choice(["local", "drive"]),
+              type=click.Choice(["local", "drive", "notebooklm"]),
               help="Override active destinations for this run.")
 def record_command(engine, language, no_transcribe, name, extra_formats, destinations_override):
     """Start recording system audio via BlackHole."""
@@ -480,6 +480,49 @@ def auth_google():
     click.echo(f"Token stored at {token_path}")
 
 
+@auth.command("notebooklm")
+def auth_notebooklm():
+    """Authenticate with NotebookLM (experimental, Playwright browser flow)."""
+    from mote.notebooklm import get_session_path, is_authenticated, run_login
+
+    config_dir = get_config_dir()
+    session_path = get_session_path(config_dir)
+
+    if session_path.exists():
+        click.echo(f"NotebookLM: session file exists at {session_path}")
+        if not click.confirm("Re-authenticate?", default=False):
+            return
+
+    # Check for Playwright Chromium binary before attempting login
+    # (RESEARCH.md Pitfall 1: playwright install chromium must be run after
+    # installing notebooklm-py[browser], otherwise login fails with a cryptic error)
+    if shutil.which("playwright") is not None:
+        result = subprocess.run(
+            ["playwright", "install", "--check", "chromium"],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            click.echo(
+                "Playwright Chromium browser not found. "
+                "Run: playwright install chromium"
+            )
+            raise click.Abort()
+    else:
+        click.echo(
+            "Playwright not found. Install the notebooklm extra and Chromium:\n"
+            "  pip install 'mote[notebooklm]'\n"
+            "  playwright install chromium"
+        )
+        raise click.Abort()
+
+    try:
+        run_login(session_path)
+    except RuntimeError as e:
+        raise click.ClickException(str(e))
+
+    click.echo(f"NotebookLM session stored at {session_path}")
+
+
 # ---------------------------------------------------------------------------
 # upload command
 # ---------------------------------------------------------------------------
@@ -537,7 +580,7 @@ def upload_command(file, last):
 @click.option("--output-format", "extra_formats", multiple=True,
               type=click.Choice(["json"]), help="Additional output formats.")
 @click.option("--destination", "destinations_override", multiple=True,
-              type=click.Choice(["local", "drive"]),
+              type=click.Choice(["local", "drive", "notebooklm"]),
               help="Override active destinations for this run.")
 def transcribe_command(wav_file, engine, language, name, extra_formats, destinations_override):
     """Transcribe an existing WAV file."""
@@ -651,6 +694,24 @@ def _run_transcription(
             click.echo(
                 f"Warning: Drive upload failed: {e}. "
                 "Transcripts saved locally. Run 'mote upload' to retry."
+            )
+
+    # NotebookLM upload (D-08: failures are warnings, D-09: never propagates)
+    if "notebooklm" in active_destinations:
+        try:
+            from mote.notebooklm import upload_transcript
+            effective_config_dir = config_dir or get_config_dir()
+            notebook_name = (
+                (cfg or {})
+                .get("destinations", {})
+                .get("notebooklm", {})
+                .get("notebook_name", "Mote Transcripts")
+            )
+            upload_transcript(effective_config_dir, written, notebook_name)
+        except Exception as e:
+            click.echo(
+                f"Warning: NotebookLM upload failed: {e}. "
+                "Run 'mote auth notebooklm' if session expired."
             )
 
     if delete_wav:
